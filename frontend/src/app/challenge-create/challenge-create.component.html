@@ -1,0 +1,247 @@
+<div class="creator-shell">
+  <header class="creator-heading">
+    <div>
+      <p class="eyebrow">Contenido reutilizable · G05</p>
+      <h1>Crear desafío práctico</h1>
+      <p class="heading-copy">
+        Definí la consigna, el punto de partida y los casos que se guardarán con el desafío.
+        Guardarlo no lo publica en ningún curso.
+      </p>
+    </div>
+    <div class="format-stamp" aria-label="Formato inicial">
+      <span>FORMATO</span>
+      <strong>JAVA / I-O</strong>
+    </div>
+  </header>
+
+  @if (error()) {
+    <div class="notice notice--error" role="alert">
+      <strong>No se pudo guardar</strong>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  @if (confirmation()) {
+    <div class="notice notice--success" role="status">
+      <strong>Contenido registrado</strong>
+      <span>{{ confirmation() }}</span>
+    </div>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+    <fieldset [disabled]="saving()">
+      <section class="form-section">
+        <div class="section-index">01</div>
+        <div class="section-content">
+          <div class="section-heading">
+            <div>
+              <h2>Definición</h2>
+              <p>La información que identifica y explica el ejercicio.</p>
+            </div>
+          </div>
+
+          <div class="field-grid field-grid--three">
+            <label class="field field--wide">
+              <span>Título <b>*</b></span>
+              <input
+                type="text"
+                formControlName="title"
+                placeholder="Ej. Sumar dos números"
+                [class.invalid]="isInvalid(form.controls.title)"
+              />
+              @if (isInvalid(form.controls.title)) {
+                <small>Ingresá un título.</small>
+              }
+            </label>
+
+            <label class="field">
+              <span>Dificultad <b>*</b></span>
+              <select formControlName="difficulty">
+                @for (difficulty of difficulties; track difficulty) {
+                  <option [value]="difficulty">{{ difficulty }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Lenguaje</span>
+              <select formControlName="language">
+                <option value="JAVA">Java</option>
+              </select>
+            </label>
+
+            <label class="field field--wide">
+              <span>Tipo</span>
+              <select formControlName="type">
+                <option value="ALGORITMOS_CON_PRUEBAS_AUTOMATICAS">
+                  Algoritmos con pruebas automáticas
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Consigna <b>*</b></span>
+            <textarea
+              formControlName="statement"
+              rows="6"
+              placeholder="Explicá qué debe resolver quien complete el desafío."
+              [class.invalid]="isInvalid(form.controls.statement)"
+            ></textarea>
+            @if (isInvalid(form.controls.statement)) {
+              <small>Ingresá una consigna.</small>
+            }
+          </label>
+
+          <label class="field">
+            <span>Código inicial</span>
+            <textarea
+              class="code-field"
+              formControlName="starterCode"
+              rows="9"
+              spellcheck="false"
+              placeholder="public class Main {&#10;    public static void main(String[] args) {&#10;    }&#10;}"
+            ></textarea>
+          </label>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <div class="section-index">02</div>
+        <div class="section-content">
+          <div class="section-heading">
+            <div>
+              <h2>Casos de prueba</h2>
+              <p>Entrada y salida pueden quedar vacías. Nombre y visibilidad son obligatorios.</p>
+            </div>
+            <button class="button button--secondary" type="button" (click)="addTestCase()">
+              + Agregar caso
+            </button>
+          </div>
+
+          <div class="test-list" formArrayName="testCases">
+            @for (test of testCases.controls; track test; let index = $index) {
+              <article class="test-card" [formGroupName]="index">
+                <div class="test-card__header">
+                  <span class="test-number"
+                    >TEST {{ (index + 1).toString().padStart(2, '0') }}</span
+                  >
+                  <button
+                    class="remove-button"
+                    type="button"
+                    [disabled]="testCases.length === 1"
+                    (click)="removeTestCase(index)"
+                    [attr.aria-label]="'Quitar caso ' + (index + 1)"
+                  >
+                    Quitar
+                  </button>
+                </div>
+
+                <div class="field-grid field-grid--test-meta">
+                  <label class="field">
+                    <span>Nombre <b>*</b></span>
+                    <input
+                      type="text"
+                      formControlName="name"
+                      placeholder="Ej. Suma de positivos"
+                      [class.invalid]="isInvalid(test.controls.name)"
+                    />
+                    @if (isInvalid(test.controls.name)) {
+                      <small>Ingresá un nombre para el caso.</small>
+                    }
+                  </label>
+
+                  <label class="field">
+                    <span>Visibilidad <b>*</b></span>
+                    <select formControlName="visibility">
+                      @for (visibility of visibilities; track visibility) {
+                        <option [value]="visibility">
+                          {{ visibility === 'PUBLICO' ? 'Público' : 'Privado' }}
+                        </option>
+                      }
+                    </select>
+                  </label>
+                </div>
+
+                <div class="io-grid">
+                  <label class="field field--io">
+                    <span>Entrada</span>
+                    <textarea
+                      formControlName="input"
+                      rows="4"
+                      placeholder="2 3"
+                      spellcheck="false"
+                    ></textarea>
+                  </label>
+                  <div class="io-arrow" aria-hidden="true">→</div>
+                  <label class="field field--io">
+                    <span>Salida esperada</span>
+                    <textarea
+                      formControlName="expectedOutput"
+                      rows="4"
+                      placeholder="5"
+                      spellcheck="false"
+                    ></textarea>
+                  </label>
+                </div>
+              </article>
+            }
+          </div>
+
+          <p class="technical-note">
+            Simplificación técnica actual: los tests se representan como entrada/salida. El contrato
+            definitivo queda pendiente de acordar con Sandbox.
+          </p>
+        </div>
+      </section>
+    </fieldset>
+
+    <div class="actions">
+      <p>Se guardará como contenido reutilizable, no publicado.</p>
+      <button class="button button--primary" type="submit" [disabled]="saving()">
+        @if (saving()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Guardando...
+        } @else {
+          Guardar desafío
+        }
+      </button>
+    </div>
+  </form>
+
+  @if (savedChallenge(); as saved) {
+    <section class="saved-detail" aria-labelledby="saved-title">
+      <div>
+        <p class="eyebrow">Detalle recuperado</p>
+        <h2 id="saved-title">{{ saved.title }}</h2>
+        <p>{{ saved.statement }}</p>
+      </div>
+      <dl>
+        <div>
+          <dt>ID</dt>
+          <dd>{{ saved.id }}</dd>
+        </div>
+        <div>
+          <dt>Dificultad</dt>
+          <dd>{{ saved.difficulty }}</dd>
+        </div>
+        <div>
+          <dt>Lenguaje</dt>
+          <dd>{{ saved.language }}</dd>
+        </div>
+        <div>
+          <dt>Tests</dt>
+          <dd>{{ saved.testCases.length }}</dd>
+        </div>
+      </dl>
+      <div class="saved-tests">
+        @for (test of saved.testCases; track test.id) {
+          <span [class.private]="test.visibility === 'PRIVADO'">
+            {{ test.name }} · {{ test.visibility === 'PUBLICO' ? 'Público' : 'Privado' }}
+          </span>
+        }
+      </div>
+      <a class="activity-link" routerLink="/actividad">Ver todos los desafíos creados</a>
+    </section>
+  }
+</div>

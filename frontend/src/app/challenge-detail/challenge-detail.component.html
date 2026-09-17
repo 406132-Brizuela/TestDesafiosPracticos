@@ -1,0 +1,67 @@
+<div class="detail-shell">
+  <a class="back-link" routerLink="/actividad">← Volver a actividad</a>
+
+  @if (error()) {
+    <section class="error-state">
+      <h1>No se pudo abrir el desafío</h1>
+      <p>{{ error() }}</p>
+    </section>
+  } @else if (challenge(); as challenge) {
+    <header>
+      <div>
+        <p class="eyebrow">PRACTICAL_CHALLENGES / {{ challenge.id }}</p>
+        <h1>{{ challenge.title }}</h1>
+      </div>
+      <div class="badges">
+        <span>{{ challenge.difficulty }}</span>
+        <span>{{ challenge.language }}</span>
+      </div>
+    </header>
+
+    <section class="statement">
+      <p class="section-label">Consigna</p>
+      <p>{{ challenge.statement }}</p>
+    </section>
+
+    <section>
+      <div class="section-heading">
+        <div>
+          <p class="section-label">CHALLENGE_VERSIONS → TESTS</p>
+          <h2>Casos de prueba</h2>
+        </div>
+        <span>{{ challenge.testCases.length }} casos</span>
+      </div>
+
+      <div class="tests">
+        @for (test of challenge.testCases; track test.id; let index = $index) {
+          <article>
+            <div class="test-head">
+              <span>TEST {{ (index + 1).toString().padStart(2, '0') }}</span>
+              <strong [class.private]="test.visibility === 'PRIVADO'">
+                {{ test.visibility === 'PUBLICO' ? 'Público' : 'Privado' }}
+              </strong>
+            </div>
+            <h3>{{ test.name }}</h3>
+            <div class="io">
+              <div>
+                <small>Entrada</small>
+                <pre>{{ test.input || '(vacía)' }}</pre>
+              </div>
+              <div>
+                <small>Salida esperada</small>
+                <pre>{{ test.expectedOutput || '(vacía)' }}</pre>
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+    </section>
+
+    <section class="starter">
+      <p class="section-label">Template Java</p>
+      <pre>{{ challenge.starterCode || '// Sin código inicial' }}</pre>
+    </section>
+  } @else {
+    <div class="loading">Cargando detalle...</div>
+  }
+</div>
