@@ -2,6 +2,7 @@ package com.tp.desafiospracticos.engine.dimension;
 
 import com.tp.desafiospracticos.engine.domain.CorrectionDimension;
 import com.tp.desafiospracticos.engine.domain.DimensionSource;
+import com.tp.desafiospracticos.engine.domain.DimensionState;
 import com.tp.desafiospracticos.engine.metrics.ExecutionMetrics;
 import com.tp.desafiospracticos.engine.metrics.TestResult;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,11 @@ public class CorrectnessEvaluator implements Evaluator {
     }
 
     @Override
+    public DimensionSource source() {
+        return DimensionSource.SANDBOX;
+    }
+
+    @Override
     public CorrectionDimension evaluate(EvaluationContext ctx) {
         ExecutionMetrics metrics = ctx.metrics();
         int testsTotal = metrics.testsTotal();
@@ -27,7 +33,7 @@ public class CorrectnessEvaluator implements Evaluator {
 
         int subScore = testsTotal == 0 ? 0 : (int) Math.round((testsPassed * 100.0) / testsTotal);
 
-        int weight = ctx.profile().weights().getOrDefault(DIMENSION_ID, 0);
+        int weight = ctx.profile().weightOf(DIMENSION_ID);
         double contribution = subScore * weight / 100.0;
 
         List<String> fallados = metrics.results().stream()
@@ -41,6 +47,6 @@ public class CorrectnessEvaluator implements Evaluator {
                 "fallados", fallados
         );
 
-        return new CorrectionDimension(DIMENSION_ID, subScore, weight, contribution, DimensionSource.SANDBOX, evidence);
+        return new CorrectionDimension(DIMENSION_ID, subScore, weight, contribution, DimensionSource.SANDBOX, DimensionState.OK, evidence);
     }
 }

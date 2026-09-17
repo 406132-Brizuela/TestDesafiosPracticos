@@ -147,6 +147,19 @@
   margin-top: 1rem;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.select-perfil {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel-raised);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 .consigna__texto {

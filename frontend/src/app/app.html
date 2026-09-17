@@ -37,6 +37,11 @@
             language="java"
           ></app-monaco-editor>
           <div class="card__footer">
+            <select class="select-perfil" [(ngModel)]="perfilSeleccionado" [disabled]="corrigiendo()">
+              @for (perfil of perfiles; track perfil) {
+                <option [value]="perfil">{{ perfil }}</option>
+              }
+            </select>
             <button class="btn-primary" (click)="enviarACorregir()" [disabled]="corrigiendo()">
               @if (corrigiendo()) {
                 <span class="spinner"></span>
@@ -73,26 +78,46 @@
               <dd>{{ r.profileId }} · v{{ r.profileVersion }}</dd>
             </dl>
 
-            @if (correctness(); as c) {
+            @for (dim of r.dimensions; track dim.dimension) {
               <div class="dimension">
                 <div class="dimension__header">
-                  <h3>Correctness</h3>
-                  <span class="dimension__score">{{ c.subScore }}<span class="dimension__score-max">/100</span></span>
-                </div>
-                <div class="progress-bar">
-                  <div class="progress-bar__fill" [style.width.%]="c.subScore"></div>
+                  <h3>{{ dim.dimension }}</h3>
+                  @if (dim.state === 'PENDING_SANDBOX') {
+                    <span class="dimension__score">pendiente</span>
+                  } @else {
+                    <span class="dimension__score">{{ dim.subScore }}<span class="dimension__score-max">/100</span></span>
+                  }
                 </div>
 
-                @if (casosFallados().length > 0) {
-                  <p class="dimension__caption">Casos fallados</p>
-                  <ul class="fallados-list">
-                    @for (caso of casosFallados(); track caso) {
-                      <li class="fallados-list__item">{{ caso }}</li>
-                    }
-                  </ul>
-                } @else {
-                  <p class="dimension__ok">✓ Todos los casos pasaron</p>
+                @if (dim.state !== 'PENDING_SANDBOX') {
+                  <div class="progress-bar">
+                    <div class="progress-bar__fill" [style.width.%]="dim.subScore"></div>
+                  </div>
                 }
+
+                @if (dim.dimension === 'correctness' && dim.state !== 'PENDING_SANDBOX') {
+                  @if (casosFalladosDe(dim).length > 0) {
+                    <p class="dimension__caption">Casos fallados</p>
+                    <ul class="fallados-list">
+                      @for (caso of casosFalladosDe(dim); track caso) {
+                        <li class="fallados-list__item">{{ caso }}</li>
+                      }
+                    </ul>
+                  } @else {
+                    <p class="dimension__ok">✓ Todos los casos pasaron</p>
+                  }
+                }
+              </div>
+            }
+
+            @if (r.feedbackAlumno.length > 0) {
+              <div class="dimension">
+                <h3>Feedback</h3>
+                <ul class="fallados-list">
+                  @for (mensaje of r.feedbackAlumno; track mensaje) {
+                    <li class="fallados-list__item">{{ mensaje }}</li>
+                  }
+                </ul>
               </div>
             }
           </section>

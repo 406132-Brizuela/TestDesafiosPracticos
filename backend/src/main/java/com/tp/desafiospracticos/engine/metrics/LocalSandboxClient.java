@@ -48,20 +48,26 @@ public class LocalSandboxClient implements SandboxClient {
             Files.writeString(sourceFile, code, StandardCharsets.UTF_8);
 
             if (!compile(workDir, sourceFile)) {
-                return new ExecutionMetrics(false, tests.size(), 0, List.of());
+                return new ExecutionMetrics(false, tests.size(), 0, 0L, false, List.of());
             }
 
             List<TestResult> results = new ArrayList<>();
             int testsPassed = 0;
+            boolean timedOut = false;
+            long startNanos = System.nanoTime();
             for (TestCase testCase : tests) {
                 TestResult result = runTestCase(workDir, testCase);
                 if (result.passed()) {
                     testsPassed++;
                 }
+                if ("TIMEOUT".equals(result.obtained())) {
+                    timedOut = true;
+                }
                 results.add(result);
             }
+            long executionTimeMs = (System.nanoTime() - startNanos) / 1_000_000;
 
-            return new ExecutionMetrics(true, tests.size(), testsPassed, results);
+            return new ExecutionMetrics(true, tests.size(), testsPassed, executionTimeMs, timedOut, results);
         } catch (IOException e) {
             throw new IllegalStateException("Error de I/O ejecutando el sandbox local", e);
         } finally {

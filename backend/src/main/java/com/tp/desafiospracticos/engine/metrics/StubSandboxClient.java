@@ -25,6 +25,6 @@ public class StubSandboxClient implements SandboxClient {
                 .map(testCase -> new TestResult(testCase.id(), true, testCase.expected(), testCase.expected()))
                 .toList();
 
-        return new ExecutionMetrics(true, tests.size(), tests.size(), results);
+        return new ExecutionMetrics(true, tests.size(), tests.size(), 0L, false, results);
     }
 }

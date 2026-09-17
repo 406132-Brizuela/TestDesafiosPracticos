@@ -8,6 +8,7 @@ public record CorrectionDimension(
         int weight,
         double contribution,
         DimensionSource source,
+        DimensionState state,
         Map<String, Object> evidence
 ) {
 }

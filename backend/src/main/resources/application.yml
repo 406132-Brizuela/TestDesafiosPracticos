@@ -3,6 +3,9 @@
 spring:
   application:
     name: desafiospracticos-service
+  jackson:
+    generator:
+      write-bigdecimal-as-plain: true
   datasource:
     url:
     username:

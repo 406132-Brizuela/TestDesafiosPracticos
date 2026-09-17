@@ -1,11 +1,12 @@
 import { Component, OnInit, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { EngineService } from './engine.service';
 import { MonacoEditorComponent } from './monaco-editor.component';
 import { ChallengeResponse, CorrectionDimension, EvaluationResult } from './models';
 
 @Component({
   selector: 'app-root',
-  imports: [MonacoEditorComponent],
+  imports: [MonacoEditorComponent, FormsModule],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
@@ -16,6 +17,8 @@ export class App implements OnInit {
   protected readonly error = signal<string | null>(null);
 
   protected codigo = '';
+  protected readonly perfiles = ['introductorio', 'avanzado'];
+  protected perfilSeleccionado = 'introductorio';
 
   constructor(private readonly engineService: EngineService) {}
 
@@ -47,7 +50,7 @@ export class App implements OnInit {
         challengeId: challenge.id,
         lenguaje: challenge.lenguaje,
         code: this.codigo,
-        profileId: 'default',
+        profileId: this.perfilSeleccionado,
       })
       .subscribe({
         next: (resultado) => {
@@ -61,12 +64,8 @@ export class App implements OnInit {
       });
   }
 
-  protected correctness(): CorrectionDimension | null {
-    return this.resultado()?.dimensions.find((d) => d.dimension === 'correctness') ?? null;
-  }
-
-  protected casosFallados(): string[] {
-    const fallados = this.correctness()?.evidence?.['fallados'];
+  protected casosFalladosDe(dim: CorrectionDimension): string[] {
+    const fallados = dim.evidence?.['fallados'];
     return Array.isArray(fallados) ? (fallados as string[]) : [];
   }
 
