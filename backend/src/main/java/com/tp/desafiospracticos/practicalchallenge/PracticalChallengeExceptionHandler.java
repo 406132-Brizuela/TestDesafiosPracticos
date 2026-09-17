@@ -14,7 +14,8 @@ import java.util.Map;
 @RestControllerAdvice(assignableTypes = {
         PracticalChallengeController.class,
         AttemptQueryController.class,
-        LocalAttemptCreationController.class
+        LocalAttemptCreationController.class,
+        LocalAttemptDraftController.class
 })
 public class PracticalChallengeExceptionHandler {
 
@@ -38,6 +39,12 @@ public class PracticalChallengeExceptionHandler {
 
     @ExceptionHandler(PracticalChallengeNotFoundException.class)
     ResponseEntity<ApiError> notFound(PracticalChallengeNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiError(
+                HttpStatus.NOT_FOUND.value(), exception.getMessage(), Map.of()));
+    }
+
+    @ExceptionHandler(AttemptNotFoundException.class)
+    ResponseEntity<ApiError> notFound(AttemptNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiError(
                 HttpStatus.NOT_FOUND.value(), exception.getMessage(), Map.of()));
     }

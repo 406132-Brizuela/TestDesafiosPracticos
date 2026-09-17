@@ -87,6 +87,21 @@ confirmado con el PO ni renegociado con Tema 06.** No tratar como cerrado.
   (hoy `Map<String,Object>`/JSON) no debería guardar código — debería
   guardar la referencia al repo/commit evaluado. Todavía no corregido.
 
+### `attemptdraft`: dónde vive el código del alumno mientras no hay Git
+
+Para poder guardar algo *hoy*, sin esperar la integración con GitHub de
+DT-08, existe el paquete `com.tp.desafiospracticos.attemptdraft`
+(`AttemptDraftEntity`/`AttemptDraftJpaRepository`). Mismo criterio que
+`motorstub`: paquete completamente aparte, explícitamente temporal, **no**
+es parte del modelo real del intento — `AttemptEntity.repoUrl`/`ref`
+siguen siendo el destino final y no se tocan desde acá.
+
+- No se convierte en nada: el día que el código del alumno viva en Git,
+  el paquete `attemptdraft` se elimina entero, no se adapta.
+- Si estás tocando el intento y ves código guardado como texto en una
+  entidad que no sea `AttemptDraftEntity`, es una violación de este
+  contrato, no una decisión válida — avisá antes de replicar el patrón.
+
 ## Qué autoría el profesor vs. qué recibe el Sandbox — no son lo mismo
 
 El profesor carga **un solo archivo** de código base (`template`) más

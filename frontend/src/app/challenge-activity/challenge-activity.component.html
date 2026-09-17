@@ -112,7 +112,10 @@
               <dt>practical_challenge_id</dt>
               <dd>{{ attempt.practicalChallengeId }}</dd>
             </dl>
-            <a [routerLink]="['/desafios', attempt.practicalChallengeId]">Ver desafío asociado</a>
+            <div class="attempt-card__links">
+              <a [routerLink]="['/desafios', attempt.practicalChallengeId]">Ver desafío asociado</a>
+              <a [routerLink]="['/intentos', attempt.id]">Continuar resolviendo</a>
+            </div>
           </article>
         }
       </section>
