@@ -3,6 +3,7 @@ package com.tp.desafiospracticos.practicalchallenge;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,5 +23,10 @@ public class AttemptQueryController {
     @GetMapping
     public List<AttemptResponse> findAll(Authentication authentication) {
         return service.findAll(authentication == null ? null : authentication.getName());
+    }
+
+    @GetMapping("/{id}")
+    public AttemptDetailResponse findById(@PathVariable String id, Authentication authentication) {
+        return service.findById(id, authentication == null ? null : authentication.getName());
     }
 }

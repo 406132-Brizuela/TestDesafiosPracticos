@@ -13,6 +13,7 @@ La implementacion actual no publica desafios, no ejecuta codigo y no registra en
 | Version inicial de los tests | Implementada como version `1` |
 | Listado y detalle de desafios | Implementados |
 | Inicio y listado de intentos | Implementados solo como prueba local |
+| Pantalla de resolución y guardado de borrador del código | Implementado en perfil local, sobre almacenamiento temporal (`ATTEMPT_DRAFTS`) |
 | Identidad y roles | Preparados para identidad validada por Gateway fuera de local |
 | Publicacion en el Motor | Pendiente |
 | Asociacion a cursos | Pendiente |
@@ -213,6 +214,18 @@ Registra el inicio minimo de una resolucion.
 
 `user_id` se agrego para poder filtrar actividad por usuario cuando la aplicacion recibe identidad del Gateway.
 
+### `ATTEMPT_DRAFTS`
+
+Tabla temporal del paquete `attemptdraft`. No forma parte del modelo real del intento: `AttemptEntity.repoUrl`/`ref` (DT-08) siguen siendo el destino final del codigo del alumno una vez exista integracion con GitHub y no se tocan aca. Mismo criterio que `STUB_MOTOR_DESAFIOS` en `motorstub`: paquete aparte, explicitamente temporal, se borra entero el dia que el codigo del alumno viva en Git (no se convierte en nada).
+
+| Campo principal | Uso actual |
+|---|---|
+| `attempt_id` | Mismo id que `ATTEMPTS.attempt_id`, sin generar nada propio |
+| `content` | Ultimo codigo guardado por el alumno para ese intento |
+| `updated_at` | Fecha del ultimo guardado |
+
+Se elimina junto con el resto del paquete `attemptdraft` cuando el codigo del alumno pase a vivir en Git.
+
 ## 5. Flujo transaccional de creacion
 
 La operacion `POST /api/desafiospracticos/desafios` realiza estos pasos:
@@ -241,6 +254,8 @@ La ruta privada base es `/api/desafiospracticos`.
 | `GET` | `/desafios/{id}` | Recupera el detalle y los tests de la version actual |
 | `POST` | `/intentos` | Inicia un intento; endpoint disponible solo en perfil `local` |
 | `GET` | `/intentos` | Lista intentos del usuario; en local lista todos |
+| `GET` | `/intentos/{id}` | Recupera el detalle de un intento (consigna, codigo inicial y borrador si existe) |
+| `PUT` | `/intentos/{id}/borrador` | Guarda (upsert) el borrador de codigo del intento; endpoint disponible solo en perfil `local` |
 
 ### Request de creacion
 
@@ -284,6 +299,7 @@ La ruta privada base es `/api/desafiospracticos`.
 | `/desafios/nuevo` | Formulario de creacion de desafios |
 | `/actividad` | Pestañas de desafios creados e intentos |
 | `/desafios/:id` | Detalle de un desafio y sus tests |
+| `/intentos/:id` | Pantalla de resolucion: consigna en solo lectura, editor Monaco y guardado de borrador |
 
 ### Formulario de creacion
 
@@ -300,6 +316,14 @@ La ruta privada base es `/api/desafiospracticos`.
 - Permite iniciar un intento cuando el backend esta ejecutandose en local.
 - Cambia automaticamente a la pestaña de intentos despues de crear uno.
 - Muestra estados de carga, confirmacion y error.
+- Cada intento ofrece un link "Continuar resolviendo" hacia `/intentos/:id`.
+
+### Pantalla de resolucion del intento
+
+- Carga el intento por `GET /intentos/:id` y muestra consigna en solo lectura.
+- Inicializa el editor Monaco (`app-monaco-editor`, reutilizado sin cambios) con `draftCode ?? starterCode`.
+- Boton "Guardar borrador": funcional, llama `PUT /intentos/:id/borrador` y muestra confirmacion con hora de guardado.
+- Botones "Compilar" y "Entregar": presentes pero deshabilitados, con nota indicando que requieren Sandbox e integracion con Git respectivamente — comunican la forma real del flujo sin fingir una capacidad que todavia no existe.
 
 La URL del backend esta fija temporalmente en `http://localhost:8080/api/desafiospracticos`. Antes de desplegar con Gateway debe externalizarse mediante configuracion de entorno.
 
@@ -425,9 +449,10 @@ Cuando se acuerde este contrato puede ser necesario reemplazar o ampliar los cam
 
 Resuelto: el momento en que se asigna el id del intento ya no es un pendiente — `intentoId` llega como campo obligatorio del request, mismo patron que `desafioId` (ver §6 de `contrato-con-tema-03.md`, confirmado con Tema 03 el 17-sep-2026). `ATTEMPTS.attempt_id` lo usa directo, sin generarlo. `alumnoId` no se agrega como campo: la identidad de quien hace la request la resuelve `userId` (Gateway), no un dato del payload de Motor.
 
+Resuelto via almacenamiento temporal: guardar el codigo mientras el alumno resuelve ya no es un pendiente — el paquete `attemptdraft` (temporal, ver `ATTEMPT_DRAFTS` en §4) guarda el ultimo borrador con upsert en `PUT /intentos/{id}/borrador`, editable desde `/intentos/:id`. Sigue siendo un solo archivo por intento (mismo criterio que `CHALLENGE_FILES` hoy) y no reemplaza el modelo real: `AttemptEntity.repoUrl`/`ref` no se tocan.
+
 Falta desarrollar el resto del ciclo de vida completo del intento:
 
-- Guardado de borrador y codigo por archivo o lenguaje.
 - Poblado real de `repo_url`/`ref` (hoy `null`) cuando exista la integracion con GitHub.
 - Envio definitivo y asignacion de `submission_datetime`.
 - Estados intermedios: pendiente, ejecutando, aceptado, rechazado y error tecnico.
@@ -490,7 +515,7 @@ Para evitar confundir prototipo con producto terminado, esta entrega no incluye:
 - Asignacion a cursos.
 - Ejecucion o compilacion de codigo.
 - Correccion automatica real.
-- Guardado o entrega de una solucion del estudiante.
+- Entrega formal de una solucion del estudiante (el guardado de borrador temporal si esta implementado, ver §4 `ATTEMPT_DRAFTS`).
 - Administracion completa de perfiles y lenguajes.
 - Edicion, borrado, archivado o clonado de desafios.
 - Versiones posteriores a la version inicial.
@@ -504,12 +529,14 @@ Para evitar confundir prototipo con producto terminado, esta entrega no incluye:
 |---|---|
 | `backend/src/main/java/com/tp/desafiospracticos/practicalchallenge/` | Entidades, repositorios, DTO, servicios y controladores de G05 |
 | `backend/src/main/java/com/tp/desafiospracticos/motorstub/` | Puerto `MotorDesafioClient` y adaptador stub temporal, a eliminar al integrar Motor real |
+| `backend/src/main/java/com/tp/desafiospracticos/attemptdraft/` | `AttemptDraftEntity`/`AttemptDraftJpaRepository`, almacenamiento temporal del borrador, a eliminar cuando el codigo del alumno viva en Git |
 | `backend/src/main/java/com/tp/desafiospracticos/config/SecurityConfig.java` | Seguridad para entornos integrados |
 | `backend/src/main/resources/application-local.yml` | H2, consola y aislamiento local |
 | `backend/src/test/java/com/tp/desafiospracticos/practicalchallenge/` | Pruebas del flujo implementado |
 | `frontend/src/app/challenge-create/` | Formulario y cliente HTTP |
 | `frontend/src/app/challenge-activity/` | Listado de desafios e intentos |
 | `frontend/src/app/challenge-detail/` | Detalle del desafio |
+| `frontend/src/app/attempt-resolve/` | Pantalla de resolucion del intento (editor y guardado de borrador) |
 | `frontend/src/app/app.routes.ts` | Rutas Angular |
 
 ## 15. Ejecucion local

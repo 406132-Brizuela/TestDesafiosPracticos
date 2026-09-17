@@ -1,5 +1,6 @@
 package com.tp.desafiospracticos.practicalchallenge;
 
+import com.tp.desafiospracticos.attemptdraft.AttemptDraftJpaRepository;
 import com.tp.desafiospracticos.motorstub.MotorStubDataResolver;
 import com.tp.desafiospracticos.motorstub.StubMotorDesafioClient;
 
@@ -16,6 +17,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
@@ -37,6 +39,9 @@ class PracticalChallengeServiceTest {
 
     @Autowired
     private AttemptJpaRepository attemptRepository;
+
+    @Autowired
+    private AttemptDraftJpaRepository draftRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -76,6 +81,66 @@ class PracticalChallengeServiceTest {
         assertEquals(1, attempts.size());
         assertEquals("Sumar dos números", attempts.get(0).challengeTitle());
         assertEquals(1, countRows("attempts"));
+    }
+
+    @Test
+    void devuelveElDetalleDeUnIntentoConElCodigoInicialYSinBorrador() {
+        PracticalChallengeResponse challenge = service.create(request(), null);
+        AttemptResponse started = attemptService.start(
+                new AttemptCreateRequest(UUID.randomUUID().toString(), challenge.id()), null);
+        attemptRepository.flush();
+
+        AttemptDetailResponse detail = attemptService.findById(started.id(), null);
+
+        assertEquals(started.id(), detail.id());
+        assertEquals(challenge.id(), detail.practicalChallengeId());
+        assertEquals("Sumar dos números", detail.challengeTitle());
+        assertEquals("Leer dos números y mostrar su suma.", detail.statement());
+        assertEquals("", detail.starterCode());
+        assertNull(detail.draftCode());
+        assertEquals("INICIADO", detail.status());
+    }
+
+    @Test
+    void guardaUnBorradorYLoDevuelveEnElDetalleSinTocarElIntentoReal() {
+        PracticalChallengeResponse challenge = service.create(request(), null);
+        AttemptResponse started = attemptService.start(
+                new AttemptCreateRequest(UUID.randomUUID().toString(), challenge.id()), null);
+        attemptRepository.flush();
+
+        AttemptDetailResponse afterSave = attemptService.saveDraft(
+                started.id(), "public class Main { /* borrador */ }", null);
+        draftRepository.flush();
+        AttemptDetailResponse recovered = attemptService.findById(started.id(), null);
+
+        assertEquals("public class Main { /* borrador */ }", afterSave.draftCode());
+        assertEquals("public class Main { /* borrador */ }", recovered.draftCode());
+        assertEquals(1, countRows("attempt_drafts"));
+        assertEquals(1, countRows("attempts"));
+    }
+
+    @Test
+    void sobreescribeElBorradorExistenteEnVezDeDuplicarLaFila() {
+        PracticalChallengeResponse challenge = service.create(request(), null);
+        AttemptResponse started = attemptService.start(
+                new AttemptCreateRequest(UUID.randomUUID().toString(), challenge.id()), null);
+        attemptRepository.flush();
+
+        attemptService.saveDraft(started.id(), "version 1", null);
+        draftRepository.flush();
+        AttemptDetailResponse afterSecondSave = attemptService.saveDraft(started.id(), "version 2", null);
+        draftRepository.flush();
+
+        assertEquals("version 2", afterSecondSave.draftCode());
+        assertEquals(1, countRows("attempt_drafts"));
+    }
+
+    @Test
+    void rechazaConsultarOGuardarUnBorradorDeUnIntentoInexistente() {
+        assertThrows(AttemptNotFoundException.class,
+                () -> attemptService.findById("no-existe", null));
+        assertThrows(AttemptNotFoundException.class,
+                () -> attemptService.saveDraft("no-existe", "codigo", null));
     }
 
     @Test

@@ -50,3 +50,18 @@ export interface AttemptResponse {
   creationDatetime: string;
   status: 'INICIADO' | 'ENTREGADO';
 }
+
+export interface AttemptDetailResponse {
+  id: string;
+  practicalChallengeId: string;
+  challengeTitle: string;
+  statement: string;
+  starterCode: string;
+  draftCode: string | null;
+  status: 'INICIADO' | 'ENTREGADO';
+  creationDatetime: string;
+}
+
+export interface AttemptDraftSaveRequest {
+  content: string;
+}

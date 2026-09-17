@@ -16,8 +16,6 @@ import java.util.UUID;
 @Service
 public class PracticalChallengeService {
 
-    private static final String MAIN_FILE_PATH = "Main.java";
-
     private final PracticalChallengeJpaRepository repository;
     private final PracticalChallengeCatalog catalog;
     private final MotorDesafioClient motorDesafioClient;
@@ -53,7 +51,7 @@ public class PracticalChallengeService {
 
         challenge.addFile(new ChallengeFileEntity(
                 UUID.randomUUID().toString(),
-                MAIN_FILE_PATH,
+                ChallengeMainFile.MAIN_FILE_PATH,
                 request.starterCode() == null ? "" : request.starterCode(),
                 0
         ));
@@ -106,7 +104,7 @@ public class PracticalChallengeService {
                 ChallengeType.ALGORITMOS_CON_PRUEBAS_AUTOMATICAS,
                 ProgrammingLanguage.valueOf(
                         challenge.getChallengeType().getProfile().getLanguage().getName()),
-                starterCodeOf(challenge),
+                ChallengeMainFile.contentOf(challenge),
                 currentTests.stream()
                         .map(version -> new PracticalChallengeResponse.TestCaseResponse(
                                 version.getTest().getId(),
@@ -130,15 +128,6 @@ public class PracticalChallengeService {
                 challenge.getCreationDatetime(),
                 currentTests(challenge).size()
         );
-    }
-
-    private String starterCodeOf(PracticalChallengeEntity challenge) {
-        return challenge.getFiles().stream()
-                .filter(file -> MAIN_FILE_PATH.equals(file.getPath()))
-                .findFirst()
-                .or(() -> challenge.getFiles().stream().findFirst())
-                .map(ChallengeFileEntity::getContent)
-                .orElse("");
     }
 
     private List<ChallengeVersionEntity> currentTests(PracticalChallengeEntity challenge) {

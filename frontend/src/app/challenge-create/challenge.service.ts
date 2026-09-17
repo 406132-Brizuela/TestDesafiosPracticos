@@ -3,6 +3,8 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   AttemptCreateRequest,
+  AttemptDetailResponse,
+  AttemptDraftSaveRequest,
   AttemptResponse,
   PracticalChallengeRequest,
   PracticalChallengeResponse,
@@ -34,5 +36,14 @@ export class ChallengeService {
 
   startAttempt(request: AttemptCreateRequest): Observable<AttemptResponse> {
     return this.http.post<AttemptResponse>(`${this.baseUrl}/intentos`, request);
+  }
+
+  getAttempt(id: string): Observable<AttemptDetailResponse> {
+    return this.http.get<AttemptDetailResponse>(`${this.baseUrl}/intentos/${id}`);
+  }
+
+  saveDraft(id: string, content: string): Observable<AttemptDetailResponse> {
+    const request: AttemptDraftSaveRequest = { content };
+    return this.http.put<AttemptDetailResponse>(`${this.baseUrl}/intentos/${id}/borrador`, request);
   }
 }

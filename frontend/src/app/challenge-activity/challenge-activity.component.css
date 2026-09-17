@@ -275,7 +275,7 @@ h1 {
 
 .record__actions a,
 .record__actions button,
-.attempt-card > a {
+.attempt-card__links a {
   padding: 0.48rem 0.62rem;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -350,8 +350,10 @@ h1 {
   text-overflow: ellipsis;
 }
 
-.attempt-card > a {
-  display: inline-block;
+.attempt-card__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .local-note {

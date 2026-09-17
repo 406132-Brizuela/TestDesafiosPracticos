@@ -1,0 +1,82 @@
+<div class="resolve-shell">
+  <a class="back-link" routerLink="/actividad">← Volver a actividad</a>
+
+  @if (error() && !attempt()) {
+    <section class="error-state">
+      <h1>No se pudo abrir el intento</h1>
+      <p>{{ error() }}</p>
+    </section>
+  } @else if (loading()) {
+    <div class="loading">Cargando intento...</div>
+  } @else if (attempt(); as current) {
+    <header>
+      <div>
+        <p class="eyebrow">ATTEMPTS / {{ current.id }}</p>
+        <h1>{{ current.challengeTitle }}</h1>
+      </div>
+      <span class="status">{{ current.status }}</span>
+    </header>
+
+    <section class="statement">
+      <p class="section-label">Consigna</p>
+      <p>{{ current.statement }}</p>
+    </section>
+
+    @if (error()) {
+      <div class="notice notice--error" role="alert">{{ error() }}</div>
+    }
+    @if (confirmation()) {
+      <div class="notice notice--success" role="status">{{ confirmation() }}</div>
+    }
+
+    <section class="editor-section">
+      <div class="section-heading">
+        <div>
+          <p class="section-label">Tu código</p>
+          <h2>Resolución</h2>
+        </div>
+        <span class="filename">Main.java</span>
+      </div>
+
+      <app-monaco-editor
+        class="editor"
+        [value]="code"
+        language="java"
+        (valueChange)="onCodeChange($event)"
+      ></app-monaco-editor>
+
+      <div class="actions">
+        <button
+          class="button button--primary"
+          type="button"
+          [disabled]="saving()"
+          (click)="saveDraft()"
+        >
+          @if (saving()) {
+            <span class="spinner" aria-hidden="true"></span>
+            Guardando...
+          } @else {
+            Guardar borrador
+          }
+        </button>
+
+        <button class="button button--disabled" type="button" disabled title="Requiere Sandbox">
+          Compilar
+        </button>
+        <button
+          class="button button--disabled"
+          type="button"
+          disabled
+          title="Requiere integración con Git"
+        >
+          Entregar
+        </button>
+      </div>
+
+      <p class="technical-note">
+        “Compilar” requiere la integración con Sandbox y “Entregar” requiere la integración con
+        Git — ninguna de las dos existe todavía. Por ahora solo se guarda el borrador del código.
+      </p>
+    </section>
+  }
+</div>
