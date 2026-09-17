@@ -1,5 +1,6 @@
 package com.tp.desafiospracticos.practicalchallenge;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -39,6 +40,21 @@ public class PracticalChallengeExceptionHandler {
     ResponseEntity<ApiError> notFound(PracticalChallengeNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiError(
                 HttpStatus.NOT_FOUND.value(), exception.getMessage(), Map.of()));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<ApiError> conflict() {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiError(
+                HttpStatus.CONFLICT.value(),
+                "El desafío o intento ya existe",
+                Map.of()
+        ));
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    ResponseEntity<ApiError> internalError(IllegalStateException exception) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ApiError(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(), exception.getMessage(), Map.of()));
     }
 
     public record ApiError(int status, String message, Map<String, String> fields) {

@@ -55,11 +55,12 @@ El sector implementado del diagrama contiene estas tablas:
 - `PROFILES`
 - `CHALLENGE_TYPES`
 - `PRACTICAL_CHALLENGES`
+- `CHALLENGE_FILES`
 - `TESTS`
 - `CHALLENGE_VERSIONS`
 - `ATTEMPTS`
 
-`PRACTICAL_CHALLENGES.challenge_id` queda nullable hasta integrar el Motor. La consola H2 solo se habilita en el perfil local y el servidor queda limitado a localhost.
+`PRACTICAL_CHALLENGES.practical_challenge_id` es el mismo `desafioId` que genera el stub de Motor (paquete `motorstub`): ya no es nullable, es la propia clave primaria. `title` y `difficulty` no viven en esta tabla — el stub de Motor los guarda en `STUB_MOTOR_DESAFIOS` para poder seguir mostrándolos en listado y detalle. El código inicial ya no se guarda como texto suelto en `PRACTICAL_CHALLENGES`: vive en `CHALLENGE_FILES`, con forma de archivo (`path` + `content`). Hoy el profesor sigue cargando un único archivo desde un textarea, así que solo existe una fila con `path = "Main.java"`, pero el storage ya queda listo para multi-archivo. La consola H2 solo se habilita en el perfil local y el servidor queda limitado a localhost.
 
 ### Simplificación técnica
 

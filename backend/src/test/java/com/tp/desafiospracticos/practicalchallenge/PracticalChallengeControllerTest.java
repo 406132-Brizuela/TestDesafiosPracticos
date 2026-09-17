@@ -106,6 +106,7 @@ class PracticalChallengeControllerTest {
     @Test
     void informaLosCamposInvalidos() throws Exception {
         PracticalChallengeRequest invalid = new PracticalChallengeRequest(
+                "desafio-1",
                 " ",
                 "",
                 null,
@@ -133,6 +134,7 @@ class PracticalChallengeControllerTest {
     @Test
     void validaNombreYVisibilidadDeCadaCaso() throws Exception {
         PracticalChallengeRequest invalid = new PracticalChallengeRequest(
+                "desafio-1",
                 "Sumar dos números",
                 "Leer dos números y mostrar su suma.",
                 Difficulty.BASICO,
@@ -157,6 +159,7 @@ class PracticalChallengeControllerTest {
 
     private PracticalChallengeRequest validRequest() {
         return new PracticalChallengeRequest(
+                "desafio-1",
                 "Sumar dos números",
                 "Leer dos números y mostrar su suma.",
                 Difficulty.BASICO,

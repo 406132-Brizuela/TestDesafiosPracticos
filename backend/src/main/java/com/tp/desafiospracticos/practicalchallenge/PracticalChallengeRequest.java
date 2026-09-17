@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record PracticalChallengeRequest(
+        @NotBlank(message = "El desafioId es obligatorio") String desafioId,
         @NotBlank(message = "El título es obligatorio") String title,
         @NotBlank(message = "La consigna es obligatoria") String statement,
         @NotNull(message = "La dificultad es obligatoria") Difficulty difficulty,

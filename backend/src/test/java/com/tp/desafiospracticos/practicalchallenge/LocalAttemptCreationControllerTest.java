@@ -12,8 +12,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -33,7 +33,7 @@ class LocalAttemptCreationControllerTest {
 
     @Test
     void iniciaUnIntentoSinAutenticacionSoloEnLocal() throws Exception {
-        when(service.start(eq("challenge-1"), isNull())).thenReturn(new AttemptResponse(
+        when(service.start(eq(new AttemptCreateRequest("attempt-1", "challenge-1")), isNull())).thenReturn(new AttemptResponse(
                 "attempt-1",
                 "challenge-1",
                 "Sumar dos números",
@@ -43,7 +43,7 @@ class LocalAttemptCreationControllerTest {
 
         mockMvc.perform(post("/api/desafiospracticos/intentos")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"practicalChallengeId\":\"challenge-1\"}"))
+                        .content("{\"intentoId\":\"attempt-1\",\"practicalChallengeId\":\"challenge-1\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("INICIADO"));
     }

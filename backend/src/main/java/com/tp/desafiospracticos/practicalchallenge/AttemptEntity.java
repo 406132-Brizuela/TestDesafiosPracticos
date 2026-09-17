@@ -6,28 +6,40 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
+import jakarta.persistence.Transient;
+
+import org.springframework.data.domain.Persistable;
 
 import java.time.Instant;
-import java.util.Map;
 
 @Entity
 @Table(name = "attempts")
-public class AttemptEntity {
+public class AttemptEntity implements Persistable<String> {
 
     @Id
     @Column(name = "attempt_id", nullable = false, updatable = false, length = 36)
     private String id;
 
+    // Persistable: distingue "nuevo" de "existente" para que Spring Data JPA
+    // llame a persist() (falla rápido con id duplicado) en vez de merge()
+    // en el primer save() de un intentoId que llega del cliente.
+    @Transient
+    private boolean isNew = true;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "practical_challenge_id", nullable = false)
     private PracticalChallengeEntity practicalChallenge;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "answer_code", nullable = false, columnDefinition = "json")
-    private Map<String, Object> answerCode;
+    // Referencia al repo/commit evaluado (DT-08, mismo shape que {repo, ref}).
+    // Quedan null hasta que exista la integración real con GitHub.
+    @Column(name = "repo_url")
+    private String repoUrl;
+
+    @Column(name = "ref")
+    private String ref;
 
     @Column(name = "creation_datetime", nullable = false)
     private Instant creationDatetime;
@@ -44,21 +56,41 @@ public class AttemptEntity {
     protected AttemptEntity() {
     }
 
-    public AttemptEntity(String id, PracticalChallengeEntity practicalChallenge, Map<String, Object> answerCode,
+    public AttemptEntity(String id, PracticalChallengeEntity practicalChallenge,
                          Instant creationDatetime, String userId) {
         this.id = id;
         this.practicalChallenge = practicalChallenge;
-        this.answerCode = answerCode;
         this.creationDatetime = creationDatetime;
         this.userId = userId;
+        this.isNew = true;
     }
 
+    @Override
     public String getId() {
         return id;
     }
 
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    @PostPersist
+    @PostLoad
+    void markNotNew() {
+        this.isNew = false;
+    }
+
     public PracticalChallengeEntity getPracticalChallenge() {
         return practicalChallenge;
+    }
+
+    public String getRepoUrl() {
+        return repoUrl;
+    }
+
+    public String getRef() {
+        return ref;
     }
 
     public Instant getCreationDatetime() {

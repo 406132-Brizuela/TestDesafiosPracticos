@@ -3,7 +3,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
-import { AttemptResponse, PracticalChallengeSummary } from '../challenge-create/challenge.models';
+import {
+  AttemptCreateRequest,
+  AttemptResponse,
+  PracticalChallengeSummary,
+} from '../challenge-create/challenge.models';
 import { ChallengeService } from '../challenge-create/challenge.service';
 
 type ActivityTab = 'challenges' | 'attempts';
@@ -42,7 +46,14 @@ export class ChallengeActivityComponent implements OnInit {
     this.startingChallengeId.set(challenge.id);
     this.error.set(null);
     this.confirmation.set(null);
-    this.service.startAttempt(challenge.id).subscribe({
+    // El intentoId real lo asigna Motor al abrir/registrar el intento. Todavía no
+    // integramos Motor, así que generamos un UUID local como stand-in temporal
+    // (mismo patrón que desafioId en challenge-create.component.ts).
+    const request: AttemptCreateRequest = {
+      intentoId: crypto.randomUUID(),
+      practicalChallengeId: challenge.id,
+    };
+    this.service.startAttempt(request).subscribe({
       next: (attempt) => {
         this.attempts.update((current) => [attempt, ...current]);
         this.startingChallengeId.set(null);

@@ -8,7 +8,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import {
   ChallengeType,
@@ -38,6 +38,14 @@ type TestCaseForm = FormGroup<{
 export class ChallengeCreateComponent {
   private readonly formBuilder = inject(FormBuilder).nonNullable;
   private readonly service = inject(ChallengeService);
+  private readonly route = inject(ActivatedRoute);
+
+  // El desafioId real llega por query param (?desafioId=...) en el redirect
+  // que hace Motor al abrir esta pantalla. Si no vino (todavía no integramos
+  // Motor), generamos un UUID local como stand-in temporal para poder seguir
+  // probando el flujo: en producción siempre debería venir por query param.
+  private readonly desafioId =
+    this.route.snapshot.queryParamMap.get('desafioId') ?? crypto.randomUUID();
 
   protected readonly difficulties: Difficulty[] = ['BASICO', 'MEDIO', 'AVANZADO'];
   protected readonly visibilities: TestVisibility[] = ['PUBLICO', 'PRIVADO'];
@@ -96,7 +104,10 @@ export class ChallengeCreateComponent {
     this.confirmation.set(null);
     this.savedChallenge.set(null);
 
-    const request: PracticalChallengeRequest = this.form.getRawValue();
+    const request: PracticalChallengeRequest = {
+      ...this.form.getRawValue(),
+      desafioId: this.desafioId,
+    };
     this.service.create(request).subscribe({
       next: (created) => this.recoverCreatedChallenge(created),
       error: (error: HttpErrorResponse) => {

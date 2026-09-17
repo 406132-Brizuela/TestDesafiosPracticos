@@ -1,19 +1,26 @@
 package com.tp.desafiospracticos.practicalchallenge;
 
+import com.tp.desafiospracticos.motorstub.MotorStubDataResolver;
+import com.tp.desafiospracticos.motorstub.StubMotorDesafioClient;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
-@Import({PracticalChallengeService.class, PracticalChallengeCatalog.class, AttemptService.class})
+@Import({PracticalChallengeService.class, PracticalChallengeCatalog.class, AttemptService.class,
+        StubMotorDesafioClient.class, MotorStubDataResolver.class, LoggingDesafioContenidoEventPublisher.class})
 class PracticalChallengeServiceTest {
 
     @Autowired
@@ -21,6 +28,9 @@ class PracticalChallengeServiceTest {
 
     @Autowired
     private PracticalChallengeJpaRepository repository;
+
+    @Autowired
+    private PracticalChallengeCatalog catalog;
 
     @Autowired
     private AttemptService attemptService;
@@ -56,7 +66,8 @@ class PracticalChallengeServiceTest {
     void creaYListaIntentosSinEjecutarElDesafio() {
         PracticalChallengeResponse challenge = service.create(request(), null);
 
-        AttemptResponse started = attemptService.start(challenge.id(), null);
+        AttemptResponse started = attemptService.start(
+                new AttemptCreateRequest(UUID.randomUUID().toString(), challenge.id()), null);
         attemptRepository.flush();
         List<AttemptResponse> attempts = attemptService.findAll(null);
 
@@ -80,6 +91,31 @@ class PracticalChallengeServiceTest {
     }
 
     @Test
+    void degradaUnaFilaSinDatosDeMotorEnElListadoEnVezDeTumbarloEntero() {
+        service.create(request(), "profesor-1");
+
+        PracticalChallengeEntity sinDatosDeMotor = new PracticalChallengeEntity(
+                UUID.randomUUID().toString(),
+                catalog.defaultType(),
+                "Desafío sin fila en el stub de Motor",
+                "profesor-1",
+                Instant.now()
+        );
+        repository.save(sinDatosDeMotor);
+        repository.flush();
+
+        List<PracticalChallengeSummaryResponse> summaries = service.findAll("profesor-1");
+
+        assertEquals(2, summaries.size());
+        PracticalChallengeSummaryResponse degraded = summaries.stream()
+                .filter(summary -> summary.id().equals(sinDatosDeMotor.getId()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(MotorStubDataResolver.FALLBACK_TITLE, degraded.title());
+        assertNull(degraded.difficulty());
+    }
+
+    @Test
     void creaLasTablasDelSectorG05DelDiagrama() {
         Set<String> tables = Set.copyOf(jdbcTemplate.queryForList(
                 "select table_name from information_schema.tables where table_schema = 'PUBLIC'",
@@ -99,6 +135,7 @@ class PracticalChallengeServiceTest {
 
     private PracticalChallengeRequest request() {
         return new PracticalChallengeRequest(
+                UUID.randomUUID().toString(),
                 "Sumar dos números",
                 "Leer dos números y mostrar su suma.",
                 Difficulty.BASICO,

@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
+  AttemptCreateRequest,
   AttemptResponse,
   PracticalChallengeRequest,
   PracticalChallengeResponse,
@@ -31,7 +32,7 @@ export class ChallengeService {
     return this.http.get<AttemptResponse[]>(`${this.baseUrl}/intentos`);
   }
 
-  startAttempt(practicalChallengeId: string): Observable<AttemptResponse> {
-    return this.http.post<AttemptResponse>(`${this.baseUrl}/intentos`, { practicalChallengeId });
+  startAttempt(request: AttemptCreateRequest): Observable<AttemptResponse> {
+    return this.http.post<AttemptResponse>(`${this.baseUrl}/intentos`, request);
   }
 }

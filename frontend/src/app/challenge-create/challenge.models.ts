@@ -11,6 +11,7 @@ export interface PracticalTestCaseRequest {
 }
 
 export interface PracticalChallengeRequest {
+  desafioId: string;
   title: string;
   statement: string;
   difficulty: Difficulty;
@@ -32,9 +33,14 @@ export interface PracticalChallengeResponse extends PracticalChallengeRequest {
 export interface PracticalChallengeSummary {
   id: string;
   title: string;
-  difficulty: Difficulty;
+  difficulty: Difficulty | null;
   creationDatetime: string;
   testCount: number;
+}
+
+export interface AttemptCreateRequest {
+  intentoId: string;
+  practicalChallengeId: string;
 }
 
 export interface AttemptResponse {

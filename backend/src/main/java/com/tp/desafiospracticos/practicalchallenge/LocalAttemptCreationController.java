@@ -26,7 +26,7 @@ public class LocalAttemptCreationController {
     public AttemptResponse start(@Valid @RequestBody AttemptCreateRequest request,
                                  Authentication authentication) {
         return service.start(
-                request.practicalChallengeId(),
+                request,
                 authentication == null ? null : authentication.getName()
         );
     }

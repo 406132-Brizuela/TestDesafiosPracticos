@@ -1,38 +1,62 @@
 package com.tp.desafiospracticos.practicalchallenge;
 
+import com.tp.desafiospracticos.motorstub.MotorDesafioClient;
+import com.tp.desafiospracticos.motorstub.MotorStubDataResolver;
+import com.tp.desafiospracticos.motorstub.StubDesafioMotorEntity;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class PracticalChallengeService {
 
+    private static final String MAIN_FILE_PATH = "Main.java";
+
     private final PracticalChallengeJpaRepository repository;
     private final PracticalChallengeCatalog catalog;
+    private final MotorDesafioClient motorDesafioClient;
+    private final MotorStubDataResolver motorStubResolver;
+    private final DesafioContenidoEventPublisher eventPublisher;
 
     public PracticalChallengeService(PracticalChallengeJpaRepository repository,
-                                     PracticalChallengeCatalog catalog) {
+                                     PracticalChallengeCatalog catalog,
+                                     MotorDesafioClient motorDesafioClient,
+                                     MotorStubDataResolver motorStubResolver,
+                                     DesafioContenidoEventPublisher eventPublisher) {
         this.repository = repository;
         this.catalog = catalog;
+        this.motorDesafioClient = motorDesafioClient;
+        this.motorStubResolver = motorStubResolver;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
     public PracticalChallengeResponse create(PracticalChallengeRequest request, String creatorId) {
         Instant creationDatetime = Instant.now();
+        String desafioId = request.desafioId();
+        motorDesafioClient.registrarDesafioRecibido(
+                desafioId, request.title().trim(), request.difficulty());
+
         PracticalChallengeEntity challenge = new PracticalChallengeEntity(
-                UUID.randomUUID().toString(),
+                desafioId,
                 catalog.defaultType(),
-                request.title().trim(),
                 request.statement().trim(),
-                request.difficulty(),
-                request.starterCode() == null ? "" : request.starterCode(),
                 creatorId,
                 creationDatetime
         );
+
+        challenge.addFile(new ChallengeFileEntity(
+                UUID.randomUUID().toString(),
+                MAIN_FILE_PATH,
+                request.starterCode() == null ? "" : request.starterCode(),
+                0
+        ));
 
         for (int index = 0; index < request.testCases().size(); index++) {
             PracticalChallengeRequest.TestCaseRequest testCase = request.testCases().get(index);
@@ -49,7 +73,9 @@ public class PracticalChallengeService {
                     UUID.randomUUID().toString(), test, 1, index));
         }
 
-        return toResponse(repository.save(challenge));
+        PracticalChallengeEntity saved = repository.save(challenge);
+        eventPublisher.publicarContenidoPersistido(desafioId, saved.getId());
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -57,7 +83,9 @@ public class PracticalChallengeService {
         List<PracticalChallengeEntity> challenges = creatorId == null
                 ? repository.findAllByOrderByCreationDatetimeDesc()
                 : repository.findAllByUserCreatorIdOrderByCreationDatetimeDesc(creatorId);
-        return challenges.stream().map(this::toSummary).toList();
+        Map<String, StubDesafioMotorEntity> motorDataById = motorStubResolver.resolveBatch(
+                challenges.stream().map(PracticalChallengeEntity::getId).toList());
+        return challenges.stream().map(challenge -> toSummary(challenge, motorDataById)).toList();
     }
 
     @Transactional(readOnly = true)
@@ -68,16 +96,17 @@ public class PracticalChallengeService {
     }
 
     private PracticalChallengeResponse toResponse(PracticalChallengeEntity challenge) {
+        StubDesafioMotorEntity motorData = motorStubResolver.resolveOrThrow(challenge.getId());
         List<ChallengeVersionEntity> currentTests = currentTests(challenge);
         return new PracticalChallengeResponse(
                 challenge.getId(),
-                challenge.getTitle(),
+                motorData.getTitle(),
                 challenge.getStatement(),
-                challenge.getDifficulty(),
+                motorData.getDifficulty(),
                 ChallengeType.ALGORITMOS_CON_PRUEBAS_AUTOMATICAS,
                 ProgrammingLanguage.valueOf(
                         challenge.getChallengeType().getProfile().getLanguage().getName()),
-                challenge.getTemplate(),
+                starterCodeOf(challenge),
                 currentTests.stream()
                         .map(version -> new PracticalChallengeResponse.TestCaseResponse(
                                 version.getTest().getId(),
@@ -90,14 +119,26 @@ public class PracticalChallengeService {
         );
     }
 
-    private PracticalChallengeSummaryResponse toSummary(PracticalChallengeEntity challenge) {
+    private PracticalChallengeSummaryResponse toSummary(
+            PracticalChallengeEntity challenge, Map<String, StubDesafioMotorEntity> motorDataById) {
+        StubDesafioMotorEntity motorData = motorStubResolver.resolveFromBatchOrFallback(
+                motorDataById, challenge.getId());
         return new PracticalChallengeSummaryResponse(
                 challenge.getId(),
-                challenge.getTitle(),
-                challenge.getDifficulty(),
+                motorData.getTitle(),
+                motorData.getDifficulty(),
                 challenge.getCreationDatetime(),
                 currentTests(challenge).size()
         );
+    }
+
+    private String starterCodeOf(PracticalChallengeEntity challenge) {
+        return challenge.getFiles().stream()
+                .filter(file -> MAIN_FILE_PATH.equals(file.getPath()))
+                .findFirst()
+                .or(() -> challenge.getFiles().stream().findFirst())
+                .map(ChallengeFileEntity::getContent)
+                .orElse("");
     }
 
     private List<ChallengeVersionEntity> currentTests(PracticalChallengeEntity challenge) {
