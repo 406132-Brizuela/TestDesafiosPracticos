@@ -1,0 +1,14 @@
+<header class="topbar">
+  <a class="wordmark" routerLink="/">G05 <span>Desafíos prácticos</span></a>
+  <nav aria-label="Navegación principal">
+    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+      >Demo del motor</a
+    >
+    <a routerLink="/actividad" routerLinkActive="active">Actividad</a>
+    <a routerLink="/desafios/nuevo" routerLinkActive="active">Crear desafío</a>
+  </nav>
+</header>
+
+<main>
+  <router-outlet />
+</main>

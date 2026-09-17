@@ -2,51 +2,78 @@
 
 TP de Progra IV - Desafíos Prácticos.
 
-## Estructura del proyecto
+El detalle completo de lo implementado, las decisiones temporales y las integraciones pendientes se encuentra en [G05_IMPLEMENTACION_Y_PENDIENTES.md](G05_IMPLEMENTACION_Y_PENDIENTES.md).
 
-```
-/
-├── backend/
-│   ├── pom.xml
-│   └── src/
-│       ├── main/
-│       │   ├── java/com/tp/desafiospracticos/
-│       │   │   ├── DesafiosPracticosApplication.java
-│       │   │   ├── engine/
-│       │   │   │   ├── domain/
-│       │   │   │   ├── profile/
-│       │   │   │   ├── dimension/
-│       │   │   │   ├── gate/
-│       │   │   │   ├── aggregation/
-│       │   │   │   ├── metrics/
-│       │   │   │   └── analysis/
-│       │   │   ├── challenge/
-│       │   │   ├── submission/
-│       │   │   ├── web/
-│       │   │   └── config/
-│       │   └── resources/
-│       │       ├── application.properties
-│       │       └── application-local.properties
-│       └── test/java/com/tp/desafiospracticos/
-└── frontend/
+## Creación de desafíos G05
+
+Esta primera versión permite guardar contenido práctico reutilizable, consultar su detalle y verlo en un listado. Guardar un desafío no lo publica ni lo asocia a un curso. El perfil local también permite iniciar y listar un registro mínimo de intento, pero no ejecuta código ni administra entregas, vidas, progreso, XP o monedas.
+
+### Levantar en local
+
+Requisitos: Java 21, Maven, Node.js y npm. No requiere Docker ni PostgreSQL.
+
+Backend, desde `backend/`:
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-## Cómo levantar el proyecto
+Frontend, desde `frontend/`:
 
-### Backend
-
-Abrir la carpeta `/backend` desde IntelliJ.
-
-```
-cd backend
-mvn spring-boot:run
-```
-
-### Frontend
-
-Abrir la carpeta `/frontend` desde WebStorm.
-
-```
-cd frontend
+```bash
+npm install
 npm start
+```
+
+Abrir `http://localhost:4200/desafios/nuevo`.
+
+La página `http://localhost:4200/actividad` contiene dos pestañas: desafíos creados e intentos iniciados. Desde el listado se puede abrir el detalle de cada desafío.
+
+El perfil `local` escucha únicamente en `127.0.0.1`, usa H2 en `backend/data/` y desactiva la autenticación para permitir esta prueba aislada. Este bypass no representa la autenticación final. Fuera de los perfiles `local` y `standalone`, crear, listar y consultar contenido requiere identidad validada por el Gateway y rol `ADMIN` o `PROFESOR`. La creación de intentos no se expone fuera de `local`.
+
+### Ejemplo
+
+- Título: `Sumar dos números`
+- Consigna: `Leer dos números y mostrar su suma.`
+- Dificultad: `BASICO`
+- Test público: nombre `Suma simple`, entrada `2 3`, salida `5`
+- Test privado: nombre `Suma de centenas`, entrada `100 250`, salida `350`
+
+Al guardar, el frontend vuelve a consultar `GET /api/desafiospracticos/desafios/{id}` y muestra el detalle recuperado. Lo escrito se conserva si la operación falla. Luego se puede abrir `Actividad`, iniciar un intento local y comprobar su aparición en la segunda pestaña.
+
+### Verificar H2
+
+Con el backend levantado en perfil `local`, abrir `http://localhost:8080/h2-console` y usar:
+
+- JDBC URL: `jdbc:h2:file:./data/desafios-practicos`
+- Usuario: `sa`
+- Contraseña: vacía
+
+El sector implementado del diagrama contiene estas tablas:
+
+- `LANGUAGES`
+- `PROFILES`
+- `CHALLENGE_TYPES`
+- `PRACTICAL_CHALLENGES`
+- `CHALLENGE_FILES`
+- `TESTS`
+- `CHALLENGE_VERSIONS`
+- `ATTEMPTS`
+
+`PRACTICAL_CHALLENGES.practical_challenge_id` es el mismo `desafioId` que genera el stub de Motor (paquete `motorstub`): ya no es nullable, es la propia clave primaria. `title` y `difficulty` no viven en esta tabla — el stub de Motor los guarda en `STUB_MOTOR_DESAFIOS` para poder seguir mostrándolos en listado y detalle. El código inicial ya no se guarda como texto suelto en `PRACTICAL_CHALLENGES`: vive en `CHALLENGE_FILES`, con forma de archivo (`path` + `content`). Hoy el profesor sigue cargando un único archivo desde un textarea, así que solo existe una fila con `path = "Main.java"`, pero el storage ya queda listo para multi-archivo. La consola H2 solo se habilita en el perfil local y el servidor queda limitado a localhost.
+
+### Simplificación técnica
+
+En esta versión los casos de prueba se modelan como pares de entrada/salida. Es una simplificación técnica temporal pendiente de acordar con Sandbox, no una exigencia del PRD.
+
+Los intentos locales solo registran el inicio y un `answer_code` vacío. No equivalen a publicación, entrega ni ejecución.
+
+## Verificación automatizada
+
+```bash
+cd backend
+mvn test
+
+cd ../frontend
+npm run build
 ```

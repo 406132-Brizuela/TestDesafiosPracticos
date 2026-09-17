@@ -1,0 +1,38 @@
+import { HttpClient } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { Observable } from 'rxjs';
+import {
+  AttemptCreateRequest,
+  AttemptResponse,
+  PracticalChallengeRequest,
+  PracticalChallengeResponse,
+  PracticalChallengeSummary,
+} from './challenge.models';
+
+@Injectable({ providedIn: 'root' })
+export class ChallengeService {
+  private readonly baseUrl = 'http://localhost:8080/api/desafiospracticos';
+  private readonly endpoint = `${this.baseUrl}/desafios`;
+
+  constructor(private readonly http: HttpClient) {}
+
+  create(request: PracticalChallengeRequest): Observable<PracticalChallengeResponse> {
+    return this.http.post<PracticalChallengeResponse>(this.endpoint, request);
+  }
+
+  findById(id: string): Observable<PracticalChallengeResponse> {
+    return this.http.get<PracticalChallengeResponse>(`${this.endpoint}/${id}`);
+  }
+
+  findAll(): Observable<PracticalChallengeSummary[]> {
+    return this.http.get<PracticalChallengeSummary[]>(this.endpoint);
+  }
+
+  findAttempts(): Observable<AttemptResponse[]> {
+    return this.http.get<AttemptResponse[]>(`${this.baseUrl}/intentos`);
+  }
+
+  startAttempt(request: AttemptCreateRequest): Observable<AttemptResponse> {
+    return this.http.post<AttemptResponse>(`${this.baseUrl}/intentos`, request);
+  }
+}

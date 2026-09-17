@@ -1,0 +1,125 @@
+<div class="activity-shell">
+  <header class="activity-heading">
+    <div>
+      <p class="eyebrow">Registro local · G05</p>
+      <h1>Actividad de desafíos</h1>
+      <p>Consultá el contenido guardado y los intentos mínimos iniciados para probarlo.</p>
+    </div>
+    <a class="create-link" routerLink="/desafios/nuevo">+ Crear desafío</a>
+  </header>
+
+  <div class="lineage" aria-label="Relación de tablas del contenido práctico">
+    <span>PRACTICAL_CHALLENGES</span><i>→</i><span>CHALLENGE_VERSIONS</span><i>→</i
+    ><span>TESTS</span>
+  </div>
+
+  @if (confirmation()) {
+    <div class="notice notice--success" role="status">{{ confirmation() }}</div>
+  }
+  @if (error()) {
+    <div class="notice notice--error" role="alert">
+      <span>{{ error() }}</span>
+      <button type="button" (click)="loadActivity()">Reintentar</button>
+    </div>
+  }
+
+  <div class="tabs" role="tablist" aria-label="Tipo de actividad">
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="activeTab() === 'challenges'"
+      [class.active]="activeTab() === 'challenges'"
+      (click)="selectTab('challenges')"
+    >
+      Desafíos creados <span>{{ challenges().length }}</span>
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="activeTab() === 'attempts'"
+      [class.active]="activeTab() === 'attempts'"
+      (click)="selectTab('attempts')"
+    >
+      Mis intentos <span>{{ attempts().length }}</span>
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="loading-state"><span class="spinner"></span> Cargando actividad...</div>
+  } @else if (activeTab() === 'challenges') {
+    @if (challenges().length === 0) {
+      <section class="empty-state">
+        <span>Sin filas en PRACTICAL_CHALLENGES</span>
+        <h2>Todavía no creaste desafíos</h2>
+        <p>Creá el primero y aparecerá acá con su versión y cantidad de tests.</p>
+        <a routerLink="/desafios/nuevo">Crear desafío</a>
+      </section>
+    } @else {
+      <section class="records" aria-label="Desafíos creados">
+        <div class="records__head">
+          <span>Desafío</span><span>Dificultad</span><span>Tests</span><span>Creado</span
+          ><span></span>
+        </div>
+        @for (challenge of challenges(); track challenge.id) {
+          <article class="record">
+            <div class="record__title">
+              <strong>{{ challenge.title }}</strong>
+              <code>{{ challenge.id }}</code>
+            </div>
+            <span class="difficulty">{{ challenge.difficulty }}</span>
+            <span class="test-count">{{ challenge.testCount.toString().padStart(2, '0') }}</span>
+            <time [attr.datetime]="challenge.creationDatetime">
+              {{ challenge.creationDatetime | date: 'dd/MM/yyyy HH:mm' }}
+            </time>
+            <div class="record__actions">
+              <a [routerLink]="['/desafios', challenge.id]">Ver detalle</a>
+              <button
+                type="button"
+                [disabled]="startingChallengeId() !== null"
+                (click)="startAttempt(challenge)"
+              >
+                {{
+                  startingChallengeId() === challenge.id ? 'Iniciando...' : 'Iniciar intento local'
+                }}
+              </button>
+            </div>
+          </article>
+        }
+      </section>
+    }
+  } @else {
+    @if (attempts().length === 0) {
+      <section class="empty-state">
+        <span>Sin filas en ATTEMPTS</span>
+        <h2>No hay intentos iniciados</h2>
+        <p>Desde “Desafíos creados” podés iniciar uno para validar el vínculo local.</p>
+        <button type="button" (click)="selectTab('challenges')">Ver desafíos</button>
+      </section>
+    } @else {
+      <section class="attempt-grid" aria-label="Intentos iniciados">
+        @for (attempt of attempts(); track attempt.id) {
+          <article class="attempt-card">
+            <div class="attempt-card__top">
+              <span class="status">{{ attempt.status }}</span>
+              <time [attr.datetime]="attempt.creationDatetime">
+                {{ attempt.creationDatetime | date: 'dd/MM/yyyy HH:mm' }}
+              </time>
+            </div>
+            <h2>{{ attempt.challengeTitle }}</h2>
+            <dl>
+              <dt>attempt_id</dt>
+              <dd>{{ attempt.id }}</dd>
+              <dt>practical_challenge_id</dt>
+              <dd>{{ attempt.practicalChallengeId }}</dd>
+            </dl>
+            <a [routerLink]="['/desafios', attempt.practicalChallengeId]">Ver desafío asociado</a>
+          </article>
+        }
+      </section>
+    }
+  }
+
+  <p class="local-note">
+    “Iniciar intento” es una herramienta del perfil local. No publica el desafío ni ejecuta código.
+  </p>
+</div>
