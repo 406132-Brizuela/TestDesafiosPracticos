@@ -11,13 +11,21 @@ import {
 import { Router } from '@angular/router';
 import { MonacoEditor } from '../monaco-editor';
 import { ChatPanel } from '../chat-panel';
-import { CompileService } from '../compile.service';
 import type {
   Challenge,
   ChatMessage,
   FailingTest,
   IntegrityEvent,
+  JavaCorrectionDimension,
+  JavaEngineProfileId,
   Verdict,
+} from '../challenge-types';
+import {
+  challengeFromJavaResponse,
+  correctnessSummaryOf,
+  feedbackFromJavaResult,
+  submissionFromJavaResult,
+  verdictFromJavaResult,
 } from '../challenge-types';
 import type { ProjectFile } from '../projects';
 import {
@@ -31,7 +39,7 @@ import {
   saveDraft,
 } from '../shared';
 import { BannerService } from '../services/banner.service';
-import { ChallengesService } from '../services/challenges.service';
+import { EngineService } from '../services/engine.service';
 import { SessionService } from '../services/session.service';
 
 interface CheckState {
@@ -39,6 +47,8 @@ interface CheckState {
   feedback: string;
   failingTest?: FailingTest | null;
   tests?: { passed: number; total: number } | null;
+  quality?: number | null;
+  dimensions?: JavaCorrectionDimension[];
 }
 
 function formatCountdown(ms: number): string {
@@ -74,6 +84,10 @@ function formatCountdown(ms: number): string {
           }
         </header>
 
+        @if (challenge.statement) {
+          <p class="muted statement">{{ challenge.statement }}</p>
+        }
+
         <div class="student-workspace">
           <div class="ide-shell">
             <div class="ide-main">
@@ -97,12 +111,19 @@ function formatCountdown(ms: number): string {
                   }
                 </div>
                 <div class="tabs-actions">
+                  <label class="muted small" title="Rúbrica de evaluación del engine">
+                    Perfil
+                    <select [value]="profileId()" (change)="onProfileChange($event)">
+                      <option value="introductorio">introductorio</option>
+                      <option value="avanzado">avanzado</option>
+                    </select>
+                  </label>
                   <button
                     type="button"
                     class="btn btn-primary"
                     [disabled]="busy()"
                     (click)="compile()"
-                    title="Compilar, ejecutar y verificar (F5)"
+                    title="Evaluar contra el engine (F5)"
                   >
                     Compilar <kbd>F5</kbd>
                   </button>
@@ -139,6 +160,19 @@ function formatCountdown(ms: number): string {
                       <span class="test-summary">
                         Tests superados: <strong>{{ tests.passed }} de {{ tests.total }}</strong>
                       </span>
+                    }
+                    @if (check.quality !== undefined && check.quality !== null) {
+                      <span class="test-summary">Calidad: <strong>{{ check.quality }}/100</strong></span>
+                    }
+                    @if (check.dimensions; as dims) {
+                      <div class="fail-block">
+                        @for (dim of dims; track dim.dimension) {
+                          <div class="cmp-line">
+                            <span class="cmp-label">{{ dim.dimension }}</span>
+                            <span class="mono cmp-value">{{ dim.subScore ?? '—' }} (peso {{ dim.weight }})</span>
+                          </div>
+                        }
+                      </div>
                     }
                     @if (check.failingTest; as fail) {
                       <div class="fail-block">
@@ -191,8 +225,7 @@ export class ChallengeSolveComponent implements OnInit, OnDestroy {
 
   protected readonly session = inject(SessionService);
   protected readonly banner = inject(BannerService);
-  private readonly challengesService = inject(ChallengesService);
-  private readonly compileService = inject(CompileService);
+  private readonly engineService = inject(EngineService);
 
   protected readonly riskOf = riskOf;
   protected readonly fileNameOf = fileNameOf;
@@ -205,6 +238,7 @@ export class ChallengeSolveComponent implements OnInit, OnDestroy {
   protected readonly activePath = signal('');
   protected readonly outputLines = signal<string[]>([]);
   protected readonly check = signal<CheckState | null>(null);
+  protected readonly profileId = signal<JavaEngineProfileId>('introductorio');
   protected transcript: ChatMessage[] = [];
   protected readonly integrityEvents = signal<IntegrityEvent[]>([]);
   protected readonly countdownMs = signal<number | null>(null);
@@ -295,7 +329,11 @@ export class ChallengeSolveComponent implements OnInit, OnDestroy {
     }
     this.busy.set(true);
     try {
-      const challenge = await this.challengesService.fetch(this.id);
+      // El desafío a resolver siempre viene del backend Java (creación de desafíos
+      // G05), nunca del store Node del monaco — this.id es un desafioId real
+      // (ej. "desafio-suma"), no uno de los seeds internos del monaco.
+      const java = await this.engineService.getChallenge(this.id);
+      const challenge = challengeFromJavaResponse(java);
       this.challenge.set(challenge);
       const baseFiles = (challenge.configuration.baseFiles ?? []).map((file) => ({ ...file }));
       const restored = loadDraft(this.id);
@@ -425,6 +463,17 @@ export class ChallengeSolveComponent implements OnInit, OnDestroy {
     this.outputLines.update((lines) => [...lines.slice(-500), line]);
   }
 
+  protected onProfileChange(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    this.profileId.set(value === 'avanzado' ? 'avanzado' : 'introductorio');
+  }
+
+  /**
+   * Único camino de ejecución/evaluación: POST /engine/evaluate al backend Java.
+   * Ya no se llama al executor del server Node — ni para "Compilar" (antes
+   * runExecution) ni para "Enviar" (antes submit) — así que el front no ejecuta
+   * código localmente ni le pide nada al sandbox de Node para este flujo.
+   */
   protected async compile(): Promise<void> {
     const challenge = this.challenge();
     if (!challenge || this.busy()) {
@@ -433,83 +482,32 @@ export class ChallengeSolveComponent implements OnInit, OnDestroy {
     this.busy.set(true);
     this.outputLines.set([]);
     this.check.set(null);
-    this.writeLine('> Compilando y ejecutando en el sandbox…');
+    this.writeLine('> Evaluando con el engine…');
     try {
-      const run = await this.compileService.runExecution(
-        challenge.challengeId,
-        this.payloadFiles(),
-        challenge.configuration.entry,
-        false,
-      );
-      if (run.status === 'ok') {
-        (run.output ?? '').split('\n').forEach((line) => this.writeLine(line));
-      } else {
-        this.writeLine(`> ${run.error ?? 'El programa no se pudo ejecutar.'}`);
-      }
-      if (run.timeMs !== undefined) {
-        this.writeLine(`> Compilación finalizada en ${run.timeMs} ms.`);
-      }
-
-      const result = await this.compileService.runExecution(
-        challenge.challengeId,
-        this.payloadFiles(),
-        challenge.configuration.entry,
-        true,
-      );
-      const suiteTests = result.tests ?? run.tests ?? [];
-      const tests =
-        suiteTests.length > 0
-          ? {
-              passed: suiteTests.filter((test) => test.passed).length,
-              total: suiteTests.length,
-            }
-          : this.hiddenTestSummary(result.verdict, result.failingTest);
-      const verdict = result.verdict ?? (run.status === 'ok' ? 'FALLADO' : 'ERROR_TECNICO');
-      const feedback =
-        result.feedback ??
-        (run.status === 'ok'
-          ? 'Sin feedback.'
-          : (run.error ?? 'La verificación no se pudo completar.'));
+      const result = await this.engineService.evaluate({
+        submissionId: crypto.randomUUID(),
+        challengeId: challenge.challengeId,
+        lenguaje: challenge.configuration.language,
+        code: this.activeContent(),
+        profileId: this.profileId(),
+      });
+      const feedback = feedbackFromJavaResult(result);
+      this.writeLine(`> ${feedback}`);
       this.check.set({
-        verdict,
+        verdict: verdictFromJavaResult(result),
         feedback,
-        failingTest: result.failingTest ?? null,
-        tests,
+        failingTest: null,
+        tests: correctnessSummaryOf(result),
+        quality: result.quality,
+        dimensions: result.dimensions,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = this.engineErrorMessage(error);
       this.writeLine(`> ${message}`);
       this.check.set({ verdict: 'ERROR_TECNICO', feedback: message, failingTest: null });
     } finally {
       this.busy.set(false);
     }
-  }
-
-  private hiddenTestSummary(
-    verdict: Verdict | undefined,
-    failingTest: FailingTest | null | undefined,
-  ): { passed: number; total: number } | null {
-    const challenge = this.challenge();
-    if (!challenge) {
-      return null;
-    }
-    const hidden = challenge.configuration.hiddenTests ?? [];
-    if (hidden.length === 0) {
-      return null;
-    }
-    if (verdict === 'SUPERADO') {
-      return { passed: hidden.length, total: hidden.length };
-    }
-    if (failingTest) {
-      const index = hidden.findIndex(
-        (test) =>
-          test.expected === failingTest.expected && (test.input ?? '') === failingTest.input,
-      );
-      if (index >= 0) {
-        return { passed: index, total: hidden.length };
-      }
-    }
-    return null;
   }
 
   protected async submit(): Promise<void> {
@@ -519,19 +517,18 @@ export class ChallengeSolveComponent implements OnInit, OnDestroy {
     }
     this.busy.set(true);
     try {
-      const result = await this.compileService.submit({
+      const result = await this.engineService.evaluate({
+        submissionId: crypto.randomUUID(),
         challengeId: challenge.challengeId,
-        courseCohortId: challenge.courseCohortId,
-        studentId: 'alumno-demo',
-        files: this.payloadFiles(),
-        entry: challenge.configuration.entry,
-        chatTranscript: this.transcript,
-        integrityEvents: this.integrityEvents(),
+        lenguaje: challenge.configuration.language,
+        code: this.activeContent(),
+        profileId: this.profileId(),
       });
+      const submission = submissionFromJavaResult(challenge, result);
       void this.router.navigate(['/challenges', challenge.challengeId, 'result'], {
         state: {
           payload: {
-            submission: result,
+            submission,
             files: this.payloadFiles(),
             chatTranscript: this.transcript,
             integrityEvents: this.integrityEvents(),
@@ -541,10 +538,13 @@ export class ChallengeSolveComponent implements OnInit, OnDestroy {
       sessionStorage.removeItem(`${this.countdownStorageKey}${challenge.challengeId}`);
       clearDraft(challenge.challengeId);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.banner.show(`No se pudo enviar la resolución: ${message}`);
+      this.banner.show(`No se pudo enviar la resolución: ${this.engineErrorMessage(error)}`);
     } finally {
       this.busy.set(false);
     }
+  }
+
+  private engineErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }

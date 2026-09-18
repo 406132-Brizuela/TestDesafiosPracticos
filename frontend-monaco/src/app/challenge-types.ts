@@ -157,6 +157,8 @@ export interface Challenge {
   courseCohortId: string;
   title: string;
   topic?: string;
+  /** Consigna del desafío. Solo viene poblado para desafíos del backend Java (ver challengeFromJavaResponse). */
+  statement?: string;
   subtype: ChallengeSubtype;
   difficulty: Difficulty;
   mandatory?: boolean;
@@ -262,6 +264,170 @@ export interface SubmissionResult {
   submittedAt: string;
   integrityEvents?: IntegrityEvent[];
   integrityRisk?: IntegrityRisk;
+  /** Presente solo cuando la resolución se evaluó contra el engine Java (ver submissionFromJavaResult). */
+  engine?: {
+    quality: number | null;
+    profileId: string;
+    profileVersion: number;
+    approvalThreshold: number;
+    status: JavaEvaluationStatus;
+    dimensions: JavaCorrectionDimension[];
+    testsTotal: number | null;
+    testsPassed: number | null;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Backend Java real (Tema 05 / G05) — GET /challenges/{id} y POST /engine/evaluate.
+// Tipos y mapeos separados de los del store Node de arriba: son dos fuentes de
+// datos distintas que hoy no comparten forma (ver EngineService).
+// ---------------------------------------------------------------------------
+
+export interface JavaPublicTestCase {
+  name: string;
+  input: string;
+}
+
+/** Espejo de web.ChallengeResponse (backend Java). Nunca trae expected ni tests PRIVADO. */
+export interface JavaChallengeResponse {
+  id: string;
+  consigna: string;
+  lenguaje: string;
+  starterCode: string;
+  testsPublicos: JavaPublicTestCase[];
+}
+
+export type JavaEngineProfileId = 'introductorio' | 'avanzado';
+
+/** Espejo de web.EvaluationRequest (backend Java). */
+export interface JavaEvaluationRequest {
+  submissionId: string;
+  challengeId: string;
+  lenguaje: string;
+  code: string;
+  profileId: JavaEngineProfileId | string | null;
+}
+
+export type JavaEvaluationStatus = 'COMPLETED' | 'NO_COMPILE' | 'PARTIAL_PENDING';
+export type JavaSuggestedVerdict = 'APPROVED' | 'NOT_APPROVED' | 'PENDING';
+export type JavaDimensionState = 'OK' | 'PENDING_SANDBOX';
+
+export interface JavaCorrectionDimension {
+  dimension: string;
+  subScore: number | null;
+  weight: number;
+  contribution: number;
+  source: string;
+  state: JavaDimensionState;
+  evidence: Record<string, unknown>;
+}
+
+/** Espejo de engine.domain.EvaluationResult (backend Java). */
+export interface JavaEvaluationResult {
+  submissionId: string;
+  profileId: string;
+  profileVersion: number;
+  engineVersion: string;
+  status: JavaEvaluationStatus;
+  quality: number | null;
+  suggestedVerdict: JavaSuggestedVerdict;
+  approvalThreshold: number;
+  dimensions: JavaCorrectionDimension[];
+  feedbackAlumno: string[];
+}
+
+/** Arma el Challenge que ya consume la UI a partir de la respuesta del backend Java. */
+export function challengeFromJavaResponse(java: JavaChallengeResponse): Challenge {
+  const entry = 'Main.java';
+  return {
+    challengeId: java.id,
+    courseCohortId: '',
+    // El backend Java (GET /challenges/{id}) no devuelve título (eso vive del lado de
+    // Motor, en el endpoint de profesor) — usamos el id como fallback visible.
+    title: java.id,
+    statement: java.consigna,
+    subtype: 'algorithms',
+    difficulty: 'BASICO',
+    mandatory: false,
+    durationMs: null,
+    configuration: {
+      language: java.lenguaje.toLowerCase(),
+      entry,
+      baseFiles: [{ path: entry, content: java.starterCode }],
+      // Solo inputs de tests PUBLICO. expected queda '' a propósito: el backend Java
+      // nunca lo manda y el front no debe mostrarlo.
+      hiddenTests: java.testsPublicos.map((test) => ({ name: test.name, input: test.input, expected: '' })),
+      expectedSolution: '',
+    },
+    metadata: {
+      version: 1,
+      createdAt: '',
+      updatedAt: '',
+      softDeleted: false,
+      riskLevel: 'MEDIO',
+    },
+  };
+}
+
+/** Traduce el resultado del engine (status + suggestedVerdict) al Verdict que ya usa la UI. */
+export function verdictFromJavaResult(result: JavaEvaluationResult): Verdict {
+  if (result.status === 'NO_COMPILE') {
+    return 'FALLADO';
+  }
+  if (result.status === 'PARTIAL_PENDING') {
+    return 'ERROR_TECNICO';
+  }
+  return result.suggestedVerdict === 'APPROVED' ? 'SUPERADO' : 'FALLADO';
+}
+
+export function feedbackFromJavaResult(result: JavaEvaluationResult): string {
+  if (result.status === 'NO_COMPILE') {
+    return 'Tu código no compiló.';
+  }
+  if (result.status === 'PARTIAL_PENDING') {
+    return 'El sandbox no respondió; el resultado quedó pendiente de reevaluación.';
+  }
+  const quality = result.quality != null ? `Calidad: ${result.quality}/100.` : '';
+  const feedback = result.feedbackAlumno.join(' ');
+  return [quality, feedback].filter(Boolean).join(' ') || 'Sin feedback adicional.';
+}
+
+/** Lee testsTotal/testsPassed de la evidencia de la dimensión "correctness", si está. */
+export function correctnessSummaryOf(
+  result: JavaEvaluationResult,
+): { passed: number; total: number } | null {
+  const correctness = result.dimensions.find((dimension) => dimension.dimension === 'correctness');
+  const evidence = correctness?.evidence as { testsTotal?: number; testsPassed?: number } | undefined;
+  if (!evidence || typeof evidence.testsTotal !== 'number' || typeof evidence.testsPassed !== 'number') {
+    return null;
+  }
+  return { passed: evidence.testsPassed, total: evidence.testsTotal };
+}
+
+/** Arma el SubmissionResult que ya consume challenge-result.ts a partir del EvaluationResult del engine. */
+export function submissionFromJavaResult(challenge: Challenge, result: JavaEvaluationResult): SubmissionResult {
+  const summary = correctnessSummaryOf(result);
+  return {
+    ok: true,
+    submissionId: result.submissionId,
+    challengeId: challenge.challengeId,
+    courseCohortId: challenge.courseCohortId,
+    studentId: 'alumno-demo',
+    verdict: verdictFromJavaResult(result),
+    feedback: feedbackFromJavaResult(result),
+    failingTest: null,
+    submittedAt: new Date().toISOString(),
+    engine: {
+      quality: result.quality,
+      profileId: result.profileId,
+      profileVersion: result.profileVersion,
+      approvalThreshold: result.approvalThreshold,
+      status: result.status,
+      dimensions: result.dimensions,
+      testsTotal: summary?.total ?? null,
+      testsPassed: summary?.passed ?? null,
+    },
+  };
 }
 
 export interface CreateChallengePayload {
