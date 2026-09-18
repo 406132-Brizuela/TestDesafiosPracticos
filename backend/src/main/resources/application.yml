@@ -4,14 +4,14 @@ spring:
   application:
     name: desafiospracticos-service
   datasource:
-    url:
-    username:
-    password:
-    driver-class-name:
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:practical_challenges}
+    username: ${POSTGRES_USER:admin}
+    password: ${POSTGRES_PASSWORD:se_picucu}
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto:
-    show-sql:
+      ddl-auto: update
+    show-sql: true
 server:
   port: ${SERVER_PORT:8086}
 management:

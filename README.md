@@ -50,3 +50,13 @@ Abrir la carpeta `/frontend` desde WebStorm.
 cd frontend
 npm start
 ```
+
+### Data Base
+
+Abrir una terminal en la carpeta raiz del proyecto.
+requiere credenciales .env no cargadas en el repositorio.
+
+```
+
+docker-compose up -d
+```
