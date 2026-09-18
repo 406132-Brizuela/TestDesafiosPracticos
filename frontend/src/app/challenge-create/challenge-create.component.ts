@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import {
   FormArray,
   FormBuilder,
@@ -13,6 +13,7 @@ import { finalize } from 'rxjs';
 import {
   ChallengeType,
   Difficulty,
+  MotorChallenge,
   PracticalChallengeRequest,
   PracticalChallengeResponse,
   ProgrammingLanguage,
@@ -35,19 +36,20 @@ type TestCaseForm = FormGroup<{
   templateUrl: './challenge-create.component.html',
   styleUrl: './challenge-create.component.css',
 })
-export class ChallengeCreateComponent {
+export class ChallengeCreateComponent implements OnInit {
   private readonly formBuilder = inject(FormBuilder).nonNullable;
   private readonly service = inject(ChallengeService);
   private readonly route = inject(ActivatedRoute);
 
-  // El desafioId real llega por query param (?desafioId=...) en el redirect
-  // que hace Motor al abrir esta pantalla. Si no vino (todavía no integramos
-  // Motor), generamos un UUID local como stand-in temporal para poder seguir
-  // probando el flujo: en producción siempre debería venir por query param.
-  private readonly desafioId =
-    this.route.snapshot.queryParamMap.get('desafioId') ?? crypto.randomUUID();
+  // El desafioId llega por redirect de Motor. Si se abre la pantalla de forma
+  // directa, se selecciona explícitamente uno de los ejemplos devueltos por
+  // el microservicio mock; G05 nunca genera un id propio.
+  protected readonly desafioId = signal<string | null>(
+    this.route.snapshot.queryParamMap.get('desafioId'),
+  );
 
-  protected readonly difficulties: Difficulty[] = ['BASICO', 'MEDIO', 'AVANZADO'];
+  protected readonly motorChallenges = signal<MotorChallenge[]>([]);
+  protected readonly loadingMotor = signal(true);
   protected readonly visibilities: TestVisibility[] = ['PUBLICO', 'PRIVADO'];
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -68,6 +70,36 @@ export class ChallengeCreateComponent {
 
   constructor() {
     this.addTestCase();
+  }
+
+  ngOnInit(): void {
+    this.service.findMotorChallenges().subscribe({
+      next: (challenges) => {
+        this.motorChallenges.set(challenges);
+        const requestedId = this.desafioId();
+        const selected =
+          challenges.find((challenge) => challenge.id === requestedId) ?? challenges[0];
+        if (selected) {
+          this.selectMotorChallenge(selected.id);
+        } else {
+          this.error.set('Motor no devolvió desafíos de ejemplo.');
+        }
+        this.loadingMotor.set(false);
+      },
+      error: (error: HttpErrorResponse) => {
+        this.loadingMotor.set(false);
+        this.error.set(this.errorMessage(error));
+      },
+    });
+  }
+
+  protected selectMotorChallenge(id: string): void {
+    const selected = this.motorChallenges().find((challenge) => challenge.id === id);
+    if (!selected) {
+      return;
+    }
+    this.desafioId.set(selected.id);
+    this.form.patchValue({ title: selected.title, difficulty: selected.difficulty });
   }
 
   protected get testCases(): FormArray<TestCaseForm> {
@@ -94,6 +126,11 @@ export class ChallengeCreateComponent {
     }
 
     this.form.markAllAsTouched();
+    const desafioId = this.desafioId();
+    if (!desafioId) {
+      this.error.set('Seleccioná un desafío proveniente de Motor.');
+      return;
+    }
     if (this.form.invalid) {
       this.error.set('Revisá los campos marcados antes de guardar.');
       return;
@@ -106,7 +143,7 @@ export class ChallengeCreateComponent {
 
     const request: PracticalChallengeRequest = {
       ...this.form.getRawValue(),
-      desafioId: this.desafioId,
+      desafioId,
     };
     this.service.create(request).subscribe({
       next: (created) => this.recoverCreatedChallenge(created),
@@ -141,7 +178,7 @@ export class ChallengeCreateComponent {
 
   private errorMessage(error: HttpErrorResponse): string {
     if (error.status === 0) {
-      return 'No se pudo conectar con el backend en localhost:8080.';
+      return 'No se pudo conectar con el backend.';
     }
     if (error.status === 401 || error.status === 403) {
       return 'Tu usuario no tiene permiso para crear desafíos.';

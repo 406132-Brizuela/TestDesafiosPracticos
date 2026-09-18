@@ -4,13 +4,37 @@ TP de Progra IV - Desafíos Prácticos.
 
 El detalle completo de lo implementado, las decisiones temporales y las integraciones pendientes se encuentra en [G05_IMPLEMENTACION_Y_PENDIENTES.md](G05_IMPLEMENTACION_Y_PENDIENTES.md).
 
+## Levantar todo con Docker Compose
+
+```bash
+docker compose up --build
+```
+
+Servicios:
+
+- Frontend: `http://localhost:4200`
+- Motor mock y selector de ejemplos: `http://localhost:8081`
+- Backend: `http://localhost:8080`
+- H2 Console: `http://localhost:8080/h2-console`
+
+El camino recomendado para probar el contrato es abrir Motor mock en
+`http://localhost:8081`, elegir uno de sus tres desafíos y seguir el redirect
+al frontend. El backend valida y recupera título/dificultad consultando Motor
+por HTTP. Los datos de H2 se conservan en el volumen `backend-data`.
+
 ## Creación de desafíos G05
 
 Esta primera versión permite guardar contenido práctico reutilizable, consultar su detalle y verlo en un listado. Guardar un desafío no lo publica ni lo asocia a un curso. El perfil local también permite iniciar y listar un registro mínimo de intento, pero no ejecuta código ni administra entregas, vidas, progreso, XP o monedas.
 
 ### Levantar en local
 
-Requisitos: Java 21, Maven, Node.js y npm. No requiere Docker ni PostgreSQL.
+Requisitos para ejecución manual: Java 21, Maven, Node.js 24 y npm. No requiere PostgreSQL.
+
+Primero levantar Motor mock, desde `motor-mock/`:
+
+```bash
+mvn spring-boot:run
+```
 
 Backend, desde `backend/`:
 
@@ -60,18 +84,21 @@ El sector implementado del diagrama contiene estas tablas:
 - `CHALLENGE_VERSIONS`
 - `ATTEMPTS`
 
-`PRACTICAL_CHALLENGES.practical_challenge_id` es el mismo `desafioId` que genera el stub de Motor (paquete `motorstub`): ya no es nullable, es la propia clave primaria. `title` y `difficulty` no viven en esta tabla — el stub de Motor los guarda en `STUB_MOTOR_DESAFIOS` para poder seguir mostrándolos en listado y detalle. El código inicial ya no se guarda como texto suelto en `PRACTICAL_CHALLENGES`: vive en `CHALLENGE_FILES`, con forma de archivo (`path` + `content`). Hoy el profesor sigue cargando un único archivo desde un textarea, así que solo existe una fila con `path = "Main.java"`, pero el storage ya queda listo para multi-archivo. La consola H2 solo se habilita en el perfil local y el servidor queda limitado a localhost.
+`PRACTICAL_CHALLENGES.practical_challenge_id` es el mismo `desafioId` que genera Motor: ya no es nullable, es la propia clave primaria. `title` y `difficulty` no viven en esta tabla; se consultan por HTTP a Motor mediante el paquete `motor`. El código inicial vive en `CHALLENGE_FILES`, con forma de archivo (`path` + `content`). Hoy el profesor carga un único archivo con `path = "Main.java"`, pero el storage queda preparado para multiarchivo.
 
 ### Simplificación técnica
 
 En esta versión los casos de prueba se modelan como pares de entrada/salida. Es una simplificación técnica temporal pendiente de acordar con Sandbox, no una exigencia del PRD.
 
-Los intentos locales solo registran el inicio y un `answer_code` vacío. No equivalen a publicación, entrega ni ejecución.
+Los intentos locales sólo registran el inicio; el borrador temporal vive en `ATTEMPT_DRAFTS`. No equivalen a publicación ni entrega.
 
 ## Verificación automatizada
 
 ```bash
 cd backend
+mvn test
+
+cd ../motor-mock
 mvn test
 
 cd ../frontend

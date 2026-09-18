@@ -51,7 +51,7 @@ En local tambien se puede iniciar un intento sobre un desafio. Ese intento solo 
 
 Guardar un `PRACTICAL_CHALLENGE` crea contenido reutilizable dentro de G05. No crea automaticamente una actividad visible para estudiantes, no lo incorpora a un curso y no lo publica en el Motor.
 
-`PRACTICAL_CHALLENGES.practical_challenge_id` es directamente el `desafioId` que genera Motor (Tema 03): G05 nunca genera un id propio para el desafio. Motor crea su registro y redirige al profesor a la pantalla de G05 pasando `desafioId` por parametro — no hay llamada de backend en ningun sentido entre Motor y G05 para esto. Por eso `desafioId` es un campo de entrada obligatorio en `PracticalChallengeRequest`, no algo que G05 pida ni genere. El puerto `motorstub.MotorDesafioClient` (adaptador `StubMotorDesafioClient`) no genera el id: solo registra/ecoa localmente `title`/`difficulty` recibidos, para que el formulario y el listado del MVP los sigan mostrando sin duplicarlos en esta tabla. A diferencia de otros adaptadores stub del proyecto, este puerto no se reemplaza por un cliente HTTP real — desaparece por completo el dia que Motor exista, porque en ese momento el dato ya llega solo por el redirect.
+`PRACTICAL_CHALLENGES.practical_challenge_id` es directamente el `desafioId` que genera Motor (Tema 03): G05 nunca genera un id propio. Motor crea su registro y redirige al profesor a G05 pasando `desafioId`. El backend usa ese id para consultar por HTTP los metadatos de solo lectura (`title`/`difficulty`); esa consulta no crea ni modifica nada en Motor. En desarrollo, `HttpMotorDesafioClient` apunta al microservicio `motor-mock`, que expone un catalogo fijo de ejemplos.
 
 ### Intento no equivale a entrega
 
@@ -125,13 +125,13 @@ Contiene la definicion principal del contenido practico.
 
 | Campo principal | Uso actual |
 |---|---|
-| `practical_challenge_id` | `desafioId` que devuelve `MotorDesafioClient`; ya no es un UUID propio de G05 |
+| `practical_challenge_id` | `desafioId` recibido desde el redirect de Motor; no es un UUID propio de G05 |
 | `challenge_type_id` | Tipo y perfil tecnico |
 | `statement` | Consigna |
 | `user_creator_id` | Identidad recibida desde seguridad, si existe |
 | `creation_datetime` | Fecha de creacion |
 
-`title` y `difficulty` son de Motor, no de G05: ya no se duplican en esta tabla. El stub de Motor los recuerda en `STUB_MOTOR_DESAFIOS` para que el formulario y el listado del MVP los sigan mostrando. El codigo inicial tampoco vive mas aca como texto suelto: se movio a `CHALLENGE_FILES`.
+`title` y `difficulty` son de Motor, no de G05: no se duplican en ninguna tabla local. Se consultan por HTTP para formulario, listado y detalle. El codigo inicial vive en `CHALLENGE_FILES`.
 
 ### `CHALLENGE_FILES`
 
@@ -151,17 +151,11 @@ Esta tabla no tiene concepto de version de contenido (a diferencia de `CHALLENGE
 
 Preparacion para trabajo futuro fuera de este sprint: cuando se implemente subir el contenido del desafio a un repo de GitHub, ese trabajo puede iterar sobre `CHALLENGE_FILES` (una lista de archivos con `path`) y comitearlos, sin tener que rediseñar el modelo de contenido en ese momento.
 
-### `STUB_MOTOR_DESAFIOS`
+### Metadatos de Motor
 
-Tabla temporal del paquete `motorstub`. No forma parte del modelo de G05: es donde el stub de Motor "recuerda" lo que recibio al crear un desafio, para poder devolverlo en `toResponse()`/`toSummary()` sin duplicarlo en `PRACTICAL_CHALLENGES`.
-
-| Campo principal | Uso actual |
-|---|---|
-| `desafio_id` | Mismo id que `PRACTICAL_CHALLENGES.practical_challenge_id` |
-| `title` | Titulo recibido al crear el desafio |
-| `difficulty` | Dificultad recibida al crear el desafio |
-
-Se elimina junto con el resto del paquete `motorstub` al integrar Motor real.
+No existe una tabla local para los metadatos de Motor. El paquete `motor`
+define el puerto `MotorDesafioClient`, el adaptador HTTP y el resolver que
+combina los datos remotos con las entidades de G05.
 
 ### `TESTS`
 
@@ -216,7 +210,7 @@ Registra el inicio minimo de una resolucion.
 
 ### `ATTEMPT_DRAFTS`
 
-Tabla temporal del paquete `attemptdraft`. No forma parte del modelo real del intento: `AttemptEntity.repoUrl`/`ref` (DT-08) siguen siendo el destino final del codigo del alumno una vez exista integracion con GitHub y no se tocan aca. Mismo criterio que `STUB_MOTOR_DESAFIOS` en `motorstub`: paquete aparte, explicitamente temporal, se borra entero el dia que el codigo del alumno viva en Git (no se convierte en nada).
+Tabla temporal del paquete `attemptdraft`. No forma parte del modelo real del intento: `AttemptEntity.repoUrl`/`ref` (DT-08) siguen siendo el destino final del codigo del alumno una vez exista integracion con GitHub y no se tocan aca. Es un paquete aparte, explicitamente temporal, que se borra entero el dia que el codigo del alumno viva en Git.
 
 | Campo principal | Uso actual |
 |---|---|
@@ -231,7 +225,7 @@ Se elimina junto con el resto del paquete `attemptdraft` cuando el codigo del al
 La operacion `POST /api/desafiospracticos/desafios` realiza estos pasos:
 
 1. Valida el request, incluido `desafioId` (llegado por el redirect de Motor).
-2. Llama a `MotorDesafioClient.registrarDesafioRecibido(desafioId, title, difficulty)` (hoy resuelto por el stub `StubMotorDesafioClient`) para dejar disponible el eco local de `title`/`difficulty`.
+2. Consulta `MotorDesafioClient.findById(desafioId)` por HTTP para validar el id y recuperar `title`/`difficulty` desde su fuente de verdad.
 3. Obtiene o crea el catalogo minimo de Java, perfil Java I/O y tipo de algoritmo.
 4. Persiste en `PRACTICAL_CHALLENGES` la consigna, creador y fecha, usando `desafioId` como `practical_challenge_id`.
 5. Persiste el codigo inicial como una fila en `CHALLENGE_FILES` (`path = "Main.java"`, `file_order = 0`).
@@ -239,7 +233,7 @@ La operacion `POST /api/desafiospracticos/desafios` realiza estos pasos:
 7. Crea una relacion `CHALLENGE_VERSIONS` version `1` por cada test.
 8. Conserva el orden original mediante `test_order`.
 9. Publica el evento `ContenidoPracticoPersistido` via `DesafioContenidoEventPublisher` (hoy solo lo loguea `LoggingDesafioContenidoEventPublisher`; Kafka lo define Tema 11).
-10. Devuelve `201 Created`, el recurso persistido (con `title`/`difficulty` resueltos contra el stub de Motor) y el header `Location`.
+10. Devuelve `201 Created`, el recurso persistido (con `title`/`difficulty` resueltos por HTTP) y el header `Location`.
 
 La operacion es transaccional: si falla cualquier parte, no debe quedar un desafio parcialmente creado.
 
@@ -325,7 +319,7 @@ La ruta privada base es `/api/desafiospracticos`.
 - Boton "Guardar borrador": funcional, llama `PUT /intentos/:id/borrador` y muestra confirmacion con hora de guardado.
 - Botones "Compilar" y "Entregar": presentes pero deshabilitados, con nota indicando que requieren Sandbox e integracion con Git respectivamente — comunican la forma real del flujo sin fingir una capacidad que todavia no existe.
 
-La URL del backend esta fija temporalmente en `http://localhost:8080/api/desafiospracticos`. Antes de desplegar con Gateway debe externalizarse mediante configuracion de entorno.
+El frontend usa URLs relativas. Nginx las enruta al backend dentro de Docker Compose.
 
 ## 8. Seguridad y perfiles
 
@@ -389,11 +383,11 @@ Resultados de la ultima verificacion:
 
 ### Motor de desafios y publicacion
 
-Resuelto: el momento en que se asigna el id del desafio ya no es un pendiente — `desafioId` llega como campo obligatorio del request (redirect de Motor), y `PRACTICAL_CHALLENGES.practical_challenge_id` lo usa directo. `MotorDesafioClient.registrarDesafioRecibido()` (hoy resuelto por `StubMotorDesafioClient`) solo ecoa `title`/`difficulty` localmente para el MVP, no genera nada.
+Resuelto para desarrollo: `desafioId` llega desde el redirect de Motor y `PRACTICAL_CHALLENGES.practical_challenge_id` lo usa directamente. Los metadatos se consultan mediante `HttpMotorDesafioClient`; Docker Compose conecta el backend con `motor-mock`.
 
 Falta definir e implementar:
 
-- El puerto `MotorDesafioClient` (eco local) se elimina por completo el dia que Motor exista — no se reemplaza por un cliente HTTP, porque G05 nunca llama a Motor para esto.
+- Reemplazar la URL de `motor-mock` por la del Motor real y acordar autenticacion/contrato definitivo.
 - Estados de borrador, publicado, despublicado y archivado.
 - Que metadatos son propiedad del Motor y cuales de G05.
 - Edicion y nuevas versiones despues de publicar.
@@ -528,7 +522,8 @@ Para evitar confundir prototipo con producto terminado, esta entrega no incluye:
 | Ruta | Responsabilidad |
 |---|---|
 | `backend/src/main/java/com/tp/desafiospracticos/practicalchallenge/` | Entidades, repositorios, DTO, servicios y controladores de G05 |
-| `backend/src/main/java/com/tp/desafiospracticos/motorstub/` | Puerto `MotorDesafioClient` y adaptador stub temporal, a eliminar al integrar Motor real |
+| `backend/src/main/java/com/tp/desafiospracticos/motor/` | Puerto y adaptador HTTP de lectura hacia Motor |
+| `motor-mock/` | Microservicio de desarrollo con catalogo fijo y redirect simulado |
 | `backend/src/main/java/com/tp/desafiospracticos/attemptdraft/` | `AttemptDraftEntity`/`AttemptDraftJpaRepository`, almacenamiento temporal del borrador, a eliminar cuando el codigo del alumno viva en Git |
 | `backend/src/main/java/com/tp/desafiospracticos/config/SecurityConfig.java` | Seguridad para entornos integrados |
 | `backend/src/main/resources/application-local.yml` | H2, consola y aislamiento local |

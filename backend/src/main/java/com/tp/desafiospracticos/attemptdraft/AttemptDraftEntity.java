@@ -15,8 +15,7 @@ import java.time.Instant;
  * ya tiene {@code repoUrl}/{@code ref} como destino final del código (DT-08,
  * vía integración con GitHub) y esos campos no se tocan acá.
  *
- * <p>Mismo patrón que el paquete {@code motorstub}: vive en un paquete
- * aparte, explícitamente temporal. El día que el código del alumno viva en
+ * <p>Vive en un paquete aparte, explícitamente temporal. El día que el código del alumno viva en
  * Git, este paquete se elimina entero — no se convierte en nada.
  */
 @Entity

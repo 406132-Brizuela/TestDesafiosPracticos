@@ -1,0 +1,44 @@
+services:
+  motor-mock:
+    build:
+      context: ./motor-mock
+    environment:
+      SERVER_PORT: 8081
+      FRONTEND_URL: http://localhost:4200
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    depends_on:
+      - motor-mock
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: 8080
+      MANAGEMENT_SERVER_ADDRESS: 0.0.0.0
+      MOTOR_URL: http://motor-mock:8081
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/data/desafios-practicos
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: ""
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    ports:
+      - "8080:8080"
+      - "8087:8087"
+    volumes:
+      - backend-data:/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "4200:80"
+    restart: unless-stopped
+
+volumes:
+  backend-data:

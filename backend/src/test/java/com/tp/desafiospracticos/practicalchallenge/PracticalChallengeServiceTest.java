@@ -1,17 +1,21 @@
 package com.tp.desafiospracticos.practicalchallenge;
 
 import com.tp.desafiospracticos.attemptdraft.AttemptDraftJpaRepository;
-import com.tp.desafiospracticos.motorstub.MotorStubDataResolver;
-import com.tp.desafiospracticos.motorstub.StubMotorDesafioClient;
+import com.tp.desafiospracticos.motor.MotorChallenge;
+import com.tp.desafiospracticos.motor.MotorChallengeResolver;
+import com.tp.desafiospracticos.motor.MotorDesafioClient;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
@@ -19,11 +23,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @Import({PracticalChallengeService.class, PracticalChallengeCatalog.class, AttemptService.class,
-        StubMotorDesafioClient.class, MotorStubDataResolver.class, LoggingDesafioContenidoEventPublisher.class})
+        MotorChallengeResolver.class, LoggingDesafioContenidoEventPublisher.class})
 class PracticalChallengeServiceTest {
+
+    private final Set<String> motorIds = new HashSet<>();
+
+    @MockBean
+    private MotorDesafioClient motorClient;
 
     @Autowired
     private PracticalChallengeService service;
@@ -45,6 +57,24 @@ class PracticalChallengeServiceTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void configureMotorMock() {
+        motorIds.clear();
+        when(motorClient.findById(anyString())).thenAnswer(invocation -> {
+            String id = invocation.getArgument(0);
+            motorIds.add(id);
+            return new MotorChallenge(id, "Sumar dos números", Difficulty.BASICO);
+        });
+        when(motorClient.findAllByIds(anyCollection())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            java.util.Collection<String> ids = invocation.getArgument(0);
+            return ids.stream()
+                    .filter(motorIds::contains)
+                    .map(id -> new MotorChallenge(id, "Sumar dos números", Difficulty.BASICO))
+                    .toList();
+        });
+    }
 
     @Test
     void guardaYRecuperaElDesafioConTodosSusCasos() {
@@ -176,7 +206,7 @@ class PracticalChallengeServiceTest {
                 .filter(summary -> summary.id().equals(sinDatosDeMotor.getId()))
                 .findFirst()
                 .orElseThrow();
-        assertEquals(MotorStubDataResolver.FALLBACK_TITLE, degraded.title());
+        assertEquals(MotorChallengeResolver.FALLBACK_TITLE, degraded.title());
         assertNull(degraded.difficulty());
     }
 

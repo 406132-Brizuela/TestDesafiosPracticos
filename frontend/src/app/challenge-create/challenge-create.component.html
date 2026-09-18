@@ -42,10 +42,27 @@
 
           <div class="field-grid field-grid--three">
             <label class="field field--wide">
+              <span>Desafío de Motor <b>*</b></span>
+              <select
+                [value]="desafioId() ?? ''"
+                [disabled]="loadingMotor()"
+                (change)="selectMotorChallenge($any($event.target).value)"
+              >
+                @for (challenge of motorChallenges(); track challenge.id) {
+                  <option [value]="challenge.id">
+                    {{ challenge.title }} · {{ challenge.difficulty }}
+                  </option>
+                }
+              </select>
+              <small>Estos datos provienen del microservicio Motor mock por HTTP.</small>
+            </label>
+
+            <label class="field field--wide">
               <span>Título <b>*</b></span>
               <input
                 type="text"
                 formControlName="title"
+                readonly
                 placeholder="Ej. Sumar dos números"
                 [class.invalid]="isInvalid(form.controls.title)"
               />
@@ -57,9 +74,9 @@
             <label class="field">
               <span>Dificultad <b>*</b></span>
               <select formControlName="difficulty">
-                @for (difficulty of difficulties; track difficulty) {
-                  <option [value]="difficulty">{{ difficulty }}</option>
-                }
+                <option [value]="form.controls.difficulty.value">
+                  {{ form.controls.difficulty.value }}
+                </option>
               </select>
             </label>
 

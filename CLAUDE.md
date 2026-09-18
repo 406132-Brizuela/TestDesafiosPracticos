@@ -27,8 +27,7 @@ Reglas derivadas:
   identidad real; cualquier entidad nuestra debe referenciarlo como campo
   obligatorio, no opcional.
 - **Nunca duplicamos `nombre`/`dificultad`/`fechas`** en entidades propias
-  — esos campos son de Motor, no nuestros, aunque en la práctica hoy no
-  tengamos forma de consultarlos.
+  — esos campos son de Motor, no nuestros. G05 los consulta por HTTP.
 
 Mismo patrón supra/sub aplicado al intento (§6 de `contrato-con-tema-03.md`,
 confirmado con Tema 03 el 17-sep-2026): `AttemptEntity.id` es el `intentoId`
@@ -36,7 +35,7 @@ recibido como dato de entrada, no generado por nosotros; `alumnoId` del
 payload de Motor no se usa como identidad — `userId` del Gateway ya cumple
 ese rol.
 
-### Motor nunca nos llama, y nosotros nunca llamamos a Motor, para crear
+### Motor nunca nos llama, y nosotros nunca llamamos a Motor para crear
 
 Importante — esto se corrigió después de haberlo modelado al revés una vez:
 la creación es un **redirect de browser**, no una llamada de backend en
@@ -44,27 +43,24 @@ ningún sentido. Motor crea su registro, genera `desafioId`, y redirige al
 profesor a nuestra pantalla con `desafioId` por query param. Nosotros
 **nunca le pedimos un id a Motor** — `desafioId` es un dato de **entrada**
 en nuestro propio request (`PracticalChallengeRequest.desafioId`), no algo
-que generemos ni confirmemos con nadie.
+que generemos. La consulta HTTP posterior sólo recupera metadatos de lectura;
+no crea ni modifica el desafío en Motor.
 
-- `MotorDesafioClient` (paquete `motorstub`) ya no genera ids — solo
-  **registra/ecoa localmente** el `title`/`difficulty` que llegaron en el
-  request, para que nuestras propias pantallas los puedan seguir mostrando
-  sin duplicarlos en la entidad real. Es un eco temporal, no un cliente que
-  hable con nadie.
-- A diferencia de otros puertos de este mismo patrón (ver el publicador de
-  eventos abajo), **este puerto no se reemplaza por un adaptador HTTP real
-  — desaparece por completo** el día que Motor exista, porque en ese
-  momento el dato ya llega solo, sin necesitar eco local.
+- `MotorDesafioClient` (paquete `motor`) es un puerto de sólo lectura. Su
+  adaptador `HttpMotorDesafioClient` consulta título y dificultad sin
+  persistirlos en G05. En desarrollo apunta al microservicio `motor-mock`.
+- `MotorChallengeResolver` usa consulta estricta al crear/consultar detalle y
+  degradación con fallback en listados cuando Motor no devuelve una fila.
 - El publicador del evento `ContenidoPracticoPersistido` sí sigue el
   patrón puerto+adaptador clásico: hoy loguea (`LoggingDesafioContenidoEventPublisher`),
   el día que Motor esté disponible se cambia por un adaptador real (bus de
   eventos) — ahí sí el modelo no cambia, solo el adaptador.
 
-Implementación: paquete `com.tp.desafiospracticos.motorstub`
-(`MotorDesafioClient` / `StubMotorDesafioClient`), y
+Implementación: paquete `com.tp.desafiospracticos.motor`
+(`MotorDesafioClient` / `HttpMotorDesafioClient`), y
 `DesafioContenidoEventPublisher` / `LoggingDesafioContenidoEventPublisher`
-en `practicalchallenge`. El paquete `motorstub` completo se elimina el día
-que se integra Motor real (no se convierte en cliente HTTP).
+en `practicalchallenge`. El microservicio `motor-mock` sólo proporciona
+datos fijos para desarrollo y se reemplaza por Motor real sin cambiar el puerto.
 
 Si estás tocando código de creación de desafíos y ves `title`/`difficulty`
 o un id propio en una entidad de contenido, es una violación de este
@@ -83,17 +79,16 @@ confirmado con el PO ni renegociado con Tema 06.** No tratar como cerrado.
   mandamos una referencia `{ repo, ref }` y ellos clonan.
 - El Sandbox **sigue siendo el motor de ejecución** — esto NO es
   GitHub Actions. Ejecutar tests sigue siendo trabajo de Tema 06.
-- Implicación pendiente de aplicar en código: `AttemptEntity.answerCode`
-  (hoy `Map<String,Object>`/JSON) no debería guardar código — debería
-  guardar la referencia al repo/commit evaluado. Todavía no corregido.
+- `AttemptEntity` ya reserva `repoUrl`/`ref` para la referencia al
+  repositorio/commit evaluado; todavía falta poblarlos mediante GitHub.
 
 ### `attemptdraft`: dónde vive el código del alumno mientras no hay Git
 
 Para poder guardar algo *hoy*, sin esperar la integración con GitHub de
 DT-08, existe el paquete `com.tp.desafiospracticos.attemptdraft`
-(`AttemptDraftEntity`/`AttemptDraftJpaRepository`). Mismo criterio que
-`motorstub`: paquete completamente aparte, explícitamente temporal, **no**
-es parte del modelo real del intento — `AttemptEntity.repoUrl`/`ref`
+(`AttemptDraftEntity`/`AttemptDraftJpaRepository`). Es un paquete
+completamente aparte, explícitamente temporal, y **no** es parte del modelo
+real del intento — `AttemptEntity.repoUrl`/`ref`
 siguen siendo el destino final y no se tocan desde acá.
 
 - No se convierte en nada: el día que el código del alumno viva en Git,

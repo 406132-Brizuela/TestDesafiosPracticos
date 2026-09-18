@@ -6,6 +6,7 @@ import {
   AttemptDetailResponse,
   AttemptDraftSaveRequest,
   AttemptResponse,
+  MotorChallenge,
   PracticalChallengeRequest,
   PracticalChallengeResponse,
   PracticalChallengeSummary,
@@ -13,7 +14,7 @@ import {
 
 @Injectable({ providedIn: 'root' })
 export class ChallengeService {
-  private readonly baseUrl = 'http://localhost:8080/api/desafiospracticos';
+  private readonly baseUrl = '/api/desafiospracticos';
   private readonly endpoint = `${this.baseUrl}/desafios`;
 
   constructor(private readonly http: HttpClient) {}
@@ -28,6 +29,10 @@ export class ChallengeService {
 
   findAll(): Observable<PracticalChallengeSummary[]> {
     return this.http.get<PracticalChallengeSummary[]>(this.endpoint);
+  }
+
+  findMotorChallenges(): Observable<MotorChallenge[]> {
+    return this.http.get<MotorChallenge[]>(`${this.baseUrl}/motor/desafios`);
   }
 
   findAttempts(): Observable<AttemptResponse[]> {
