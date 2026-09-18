@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -128,13 +127,6 @@ public class PracticalChallengeService {
     }
 
     private List<ChallengeVersionEntity> currentTests(PracticalChallengeEntity challenge) {
-        int currentVersion = challenge.getVersions().stream()
-                .mapToInt(ChallengeVersionEntity::getVersion)
-                .max()
-                .orElse(1);
-        return challenge.getVersions().stream()
-                .filter(version -> version.getVersion() == currentVersion)
-                .sorted(Comparator.comparingInt(ChallengeVersionEntity::getTestOrder))
-                .toList();
+        return ChallengeVersions.currentTests(challenge);
     }
 }

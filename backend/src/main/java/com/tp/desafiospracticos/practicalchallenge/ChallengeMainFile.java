@@ -6,10 +6,12 @@ package com.tp.desafiospracticos.practicalchallenge;
  * archivo se guarda siempre bajo el path fijo {@link #MAIN_FILE_PATH}.
  *
  * Centraliza acá la constante y la búsqueda del archivo principal para que
- * {@link PracticalChallengeService} y {@link AttemptService} no repitan el
- * mismo stream — antes cada uno tenía su propia copia.
+ * {@link PracticalChallengeService}, {@link AttemptService} y el adaptador
+ * JPA del engine (com.tp.desafiospracticos.challenge.JpaChallengeRepository)
+ * no repitan el mismo stream — antes cada uno tenía su propia copia. Público
+ * porque el adaptador del engine vive en otro paquete.
  */
-final class ChallengeMainFile {
+public final class ChallengeMainFile {
 
     static final String MAIN_FILE_PATH = "Main.java";
 
@@ -20,7 +22,7 @@ final class ChallengeMainFile {
      * Busca el archivo por {@link #MAIN_FILE_PATH}; si no está, cae al
      * primer archivo cargado. Devuelve "" si el desafío no tiene archivos.
      */
-    static String contentOf(PracticalChallengeEntity challenge) {
+    public static String contentOf(PracticalChallengeEntity challenge) {
         return challenge.getFiles().stream()
                 .filter(file -> MAIN_FILE_PATH.equals(file.getPath()))
                 .findFirst()
