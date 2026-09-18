@@ -46,6 +46,7 @@ app:
   client-id: ${APP_CLIENT_ID:desafiospracticos-service}
   client-secret: ${APP_CLIENT_SECRET:}
   gateway-url: ${GATEWAY_URL:http://api-gateway:8080}  # micro-a-micro: siempre el gateway
+  motor-url: ${MOTOR_URL:http://localhost:8081}
   # JWKS (job rev 11): claves PUBLICAS, bootstrap de infra — la UNICA llamada
   # que NO va por el gateway (excepcion documentada a R2, ver SPEC §7b).
   jwks-url: ${JWKS_URL:http://users-service:8082/.well-known/jwks.json}

@@ -90,7 +90,7 @@ export class AttemptResolveComponent implements OnInit {
 
   private loadErrorMessage(error: HttpErrorResponse): string {
     if (error.status === 0) {
-      return 'No se pudo conectar con el backend en localhost:8080.';
+      return 'No se pudo conectar con el backend.';
     }
     if (error.status === 401 || error.status === 403) {
       return 'Tu usuario no tiene permiso para esta acción.';
@@ -103,7 +103,7 @@ export class AttemptResolveComponent implements OnInit {
 
   private saveErrorMessage(error: HttpErrorResponse): string {
     if (error.status === 0) {
-      return 'No se pudo conectar con el backend en localhost:8080.';
+      return 'No se pudo conectar con el backend.';
     }
     if (error.status === 401 || error.status === 403) {
       return 'Tu usuario no tiene permiso para esta acción.';

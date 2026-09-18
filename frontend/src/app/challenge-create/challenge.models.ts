@@ -3,6 +3,12 @@ export type ChallengeType = 'ALGORITMOS_CON_PRUEBAS_AUTOMATICAS';
 export type ProgrammingLanguage = 'JAVA';
 export type TestVisibility = 'PUBLICO' | 'PRIVADO';
 
+export interface MotorChallenge {
+  id: string;
+  title: string;
+  difficulty: Difficulty;
+}
+
 export interface PracticalTestCaseRequest {
   name: string;
   input: string;

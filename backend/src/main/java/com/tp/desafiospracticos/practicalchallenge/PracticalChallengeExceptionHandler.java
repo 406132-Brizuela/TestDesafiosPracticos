@@ -1,5 +1,7 @@
 package com.tp.desafiospracticos.practicalchallenge;
 
+import com.tp.desafiospracticos.motor.MotorChallengeNotFoundException;
+import com.tp.desafiospracticos.motor.MotorCatalogController;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,7 +17,8 @@ import java.util.Map;
         PracticalChallengeController.class,
         AttemptQueryController.class,
         LocalAttemptCreationController.class,
-        LocalAttemptDraftController.class
+        LocalAttemptDraftController.class,
+        MotorCatalogController.class
 })
 public class PracticalChallengeExceptionHandler {
 
@@ -47,6 +50,12 @@ public class PracticalChallengeExceptionHandler {
     ResponseEntity<ApiError> notFound(AttemptNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiError(
                 HttpStatus.NOT_FOUND.value(), exception.getMessage(), Map.of()));
+    }
+
+    @ExceptionHandler(MotorChallengeNotFoundException.class)
+    ResponseEntity<ApiError> motorChallengeNotFound(MotorChallengeNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(new ApiError(
+                HttpStatus.UNPROCESSABLE_ENTITY.value(), exception.getMessage(), Map.of()));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

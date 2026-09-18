@@ -2,8 +2,8 @@ package com.tp.desafiospracticos.practicalchallenge;
 
 import com.tp.desafiospracticos.attemptdraft.AttemptDraftEntity;
 import com.tp.desafiospracticos.attemptdraft.AttemptDraftJpaRepository;
-import com.tp.desafiospracticos.motorstub.MotorStubDataResolver;
-import com.tp.desafiospracticos.motorstub.StubDesafioMotorEntity;
+import com.tp.desafiospracticos.motor.MotorChallenge;
+import com.tp.desafiospracticos.motor.MotorChallengeResolver;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,16 +17,16 @@ public class AttemptService {
 
     private final AttemptJpaRepository attemptRepository;
     private final PracticalChallengeJpaRepository challengeRepository;
-    private final MotorStubDataResolver motorStubResolver;
+    private final MotorChallengeResolver motorResolver;
     private final AttemptDraftJpaRepository draftRepository;
 
     public AttemptService(AttemptJpaRepository attemptRepository,
                           PracticalChallengeJpaRepository challengeRepository,
-                          MotorStubDataResolver motorStubResolver,
+                          MotorChallengeResolver motorResolver,
                           AttemptDraftJpaRepository draftRepository) {
         this.attemptRepository = attemptRepository;
         this.challengeRepository = challengeRepository;
-        this.motorStubResolver = motorStubResolver;
+        this.motorResolver = motorResolver;
         this.draftRepository = draftRepository;
     }
 
@@ -48,7 +48,7 @@ public class AttemptService {
         List<AttemptEntity> attempts = userId == null
                 ? attemptRepository.findAllByOrderByCreationDatetimeDesc()
                 : attemptRepository.findAllByUserIdOrderByCreationDatetimeDesc(userId);
-        Map<String, StubDesafioMotorEntity> motorDataById = motorStubResolver.resolveBatch(
+        Map<String, MotorChallenge> motorDataById = motorResolver.resolveBatch(
                 attempts.stream().map(attempt -> attempt.getPracticalChallenge().getId()).toList());
         return attempts.stream().map(attempt -> toResponse(attempt, motorDataById)).toList();
     }
@@ -82,7 +82,7 @@ public class AttemptService {
     private AttemptDetailResponse toDetailResponse(AttemptEntity attempt) {
         PracticalChallengeEntity challenge = attempt.getPracticalChallenge();
         String desafioId = challenge.getId();
-        String title = motorStubResolver.resolveOrThrow(desafioId).getTitle();
+        String title = motorResolver.resolveOrThrow(desafioId).title();
         String draftCode = draftRepository.findById(attempt.getId())
                 .map(AttemptDraftEntity::getContent)
                 .orElse(null);
@@ -101,13 +101,13 @@ public class AttemptService {
 
     private AttemptResponse toResponse(AttemptEntity attempt) {
         String desafioId = attempt.getPracticalChallenge().getId();
-        String title = motorStubResolver.resolveOrThrow(desafioId).getTitle();
+        String title = motorResolver.resolveOrThrow(desafioId).title();
         return toResponse(attempt, desafioId, title);
     }
 
-    private AttemptResponse toResponse(AttemptEntity attempt, Map<String, StubDesafioMotorEntity> motorDataById) {
+    private AttemptResponse toResponse(AttemptEntity attempt, Map<String, MotorChallenge> motorDataById) {
         String desafioId = attempt.getPracticalChallenge().getId();
-        String title = motorStubResolver.resolveFromBatchOrFallback(motorDataById, desafioId).getTitle();
+        String title = motorResolver.resolveFromBatchOrFallback(motorDataById, desafioId).title();
         return toResponse(attempt, desafioId, title);
     }
 

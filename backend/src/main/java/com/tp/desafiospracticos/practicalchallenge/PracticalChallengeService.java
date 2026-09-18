@@ -1,8 +1,7 @@
 package com.tp.desafiospracticos.practicalchallenge;
 
-import com.tp.desafiospracticos.motorstub.MotorDesafioClient;
-import com.tp.desafiospracticos.motorstub.MotorStubDataResolver;
-import com.tp.desafiospracticos.motorstub.StubDesafioMotorEntity;
+import com.tp.desafiospracticos.motor.MotorChallenge;
+import com.tp.desafiospracticos.motor.MotorChallengeResolver;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,19 +17,16 @@ public class PracticalChallengeService {
 
     private final PracticalChallengeJpaRepository repository;
     private final PracticalChallengeCatalog catalog;
-    private final MotorDesafioClient motorDesafioClient;
-    private final MotorStubDataResolver motorStubResolver;
+    private final MotorChallengeResolver motorResolver;
     private final DesafioContenidoEventPublisher eventPublisher;
 
     public PracticalChallengeService(PracticalChallengeJpaRepository repository,
                                      PracticalChallengeCatalog catalog,
-                                     MotorDesafioClient motorDesafioClient,
-                                     MotorStubDataResolver motorStubResolver,
+                                     MotorChallengeResolver motorResolver,
                                      DesafioContenidoEventPublisher eventPublisher) {
         this.repository = repository;
         this.catalog = catalog;
-        this.motorDesafioClient = motorDesafioClient;
-        this.motorStubResolver = motorStubResolver;
+        this.motorResolver = motorResolver;
         this.eventPublisher = eventPublisher;
     }
 
@@ -38,8 +34,9 @@ public class PracticalChallengeService {
     public PracticalChallengeResponse create(PracticalChallengeRequest request, String creatorId) {
         Instant creationDatetime = Instant.now();
         String desafioId = request.desafioId();
-        motorDesafioClient.registrarDesafioRecibido(
-                desafioId, request.title().trim(), request.difficulty());
+        // El id llega desde el redirect de Motor; la consulta HTTP valida que
+        // exista y deja a Motor como fuente de verdad de título/dificultad.
+        motorResolver.resolveOrThrow(desafioId);
 
         PracticalChallengeEntity challenge = new PracticalChallengeEntity(
                 desafioId,
@@ -81,7 +78,7 @@ public class PracticalChallengeService {
         List<PracticalChallengeEntity> challenges = creatorId == null
                 ? repository.findAllByOrderByCreationDatetimeDesc()
                 : repository.findAllByUserCreatorIdOrderByCreationDatetimeDesc(creatorId);
-        Map<String, StubDesafioMotorEntity> motorDataById = motorStubResolver.resolveBatch(
+        Map<String, MotorChallenge> motorDataById = motorResolver.resolveBatch(
                 challenges.stream().map(PracticalChallengeEntity::getId).toList());
         return challenges.stream().map(challenge -> toSummary(challenge, motorDataById)).toList();
     }
@@ -94,13 +91,13 @@ public class PracticalChallengeService {
     }
 
     private PracticalChallengeResponse toResponse(PracticalChallengeEntity challenge) {
-        StubDesafioMotorEntity motorData = motorStubResolver.resolveOrThrow(challenge.getId());
+        MotorChallenge motorData = motorResolver.resolveOrThrow(challenge.getId());
         List<ChallengeVersionEntity> currentTests = currentTests(challenge);
         return new PracticalChallengeResponse(
                 challenge.getId(),
-                motorData.getTitle(),
+                motorData.title(),
                 challenge.getStatement(),
-                motorData.getDifficulty(),
+                motorData.difficulty(),
                 ChallengeType.ALGORITMOS_CON_PRUEBAS_AUTOMATICAS,
                 ProgrammingLanguage.valueOf(
                         challenge.getChallengeType().getProfile().getLanguage().getName()),
@@ -118,13 +115,13 @@ public class PracticalChallengeService {
     }
 
     private PracticalChallengeSummaryResponse toSummary(
-            PracticalChallengeEntity challenge, Map<String, StubDesafioMotorEntity> motorDataById) {
-        StubDesafioMotorEntity motorData = motorStubResolver.resolveFromBatchOrFallback(
+            PracticalChallengeEntity challenge, Map<String, MotorChallenge> motorDataById) {
+        MotorChallenge motorData = motorResolver.resolveFromBatchOrFallback(
                 motorDataById, challenge.getId());
         return new PracticalChallengeSummaryResponse(
                 challenge.getId(),
-                motorData.getTitle(),
-                motorData.getDifficulty(),
+                motorData.title(),
+                motorData.difficulty(),
                 challenge.getCreationDatetime(),
                 currentTests(challenge).size()
         );
