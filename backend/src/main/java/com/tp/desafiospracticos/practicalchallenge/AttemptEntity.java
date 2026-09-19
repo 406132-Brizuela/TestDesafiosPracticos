@@ -47,7 +47,8 @@ public class AttemptEntity implements Persistable<String> {
     @Column(name = "submission_datetime")
     private Instant submissionDatetime;
 
-    @Column(name = "llm_conversation_id")
+    // Identificador opaco: no se asume que el proveedor real use UUID.
+    @Column(name = "llm_conversation_id", length = 128)
     private String llmConversationId;
 
     @Column(name = "user_id")
@@ -99,5 +100,38 @@ public class AttemptEntity implements Persistable<String> {
 
     public Instant getSubmissionDatetime() {
         return submissionDatetime;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public String getLlmConversationId() {
+        return llmConversationId;
+    }
+
+    public void associateTutorSession(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new IllegalArgumentException("El sessionId del tutor es obligatorio");
+        }
+        if (llmConversationId != null && !llmConversationId.equals(sessionId)) {
+            throw new IllegalStateException("El intento ya tiene otra sesión de tutor asociada");
+        }
+        this.llmConversationId = sessionId;
+    }
+
+    /**
+     * Resincroniza la referencia cuando el proveedor del tutor perdió una sesión
+     * efímera y creó otra para el mismo intento.
+     */
+    public boolean synchronizeTutorSession(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new IllegalArgumentException("El sessionId del tutor es obligatorio");
+        }
+        if (sessionId.equals(llmConversationId)) {
+            return false;
+        }
+        this.llmConversationId = sessionId;
+        return true;
     }
 }

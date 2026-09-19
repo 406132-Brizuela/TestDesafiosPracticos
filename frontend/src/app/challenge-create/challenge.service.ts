@@ -10,6 +10,8 @@ import {
   PracticalChallengeRequest,
   PracticalChallengeResponse,
   PracticalChallengeSummary,
+  TutorSessionResponse,
+  TutorMessageResponse,
 } from './challenge.models';
 
 @Injectable({ providedIn: 'root' })
@@ -50,5 +52,23 @@ export class ChallengeService {
   saveDraft(id: string, content: string): Observable<AttemptDetailResponse> {
     const request: AttemptDraftSaveRequest = { content };
     return this.http.put<AttemptDetailResponse>(`${this.baseUrl}/intentos/${id}/borrador`, request);
+  }
+
+  createTutorSession(attemptId: string): Observable<TutorSessionResponse> {
+    return this.http.post<TutorSessionResponse>(
+      `${this.baseUrl}/intentos/${attemptId}/tutor/sesion`,
+      {},
+    );
+  }
+
+  sendTutorMessage(
+    attemptId: string,
+    content: string,
+    currentCode: string,
+  ): Observable<TutorMessageResponse> {
+    return this.http.post<TutorMessageResponse>(
+      `${this.baseUrl}/intentos/${attemptId}/tutor/mensajes`,
+      { content, currentCode },
+    );
   }
 }

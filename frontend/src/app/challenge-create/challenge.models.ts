@@ -71,3 +71,18 @@ export interface AttemptDetailResponse {
 export interface AttemptDraftSaveRequest {
   content: string;
 }
+
+export interface TutorSessionResponse {
+  sessionId: string;
+  attemptId: string;
+  practicalChallengeId: string;
+  status: 'ACTIVE' | 'CLOSED' | 'FAILED';
+}
+
+export interface TutorMessageResponse {
+  messageId: string;
+  sessionId: string;
+  role: 'STUDENT' | 'TUTOR';
+  content: string;
+  createdAt: string;
+}

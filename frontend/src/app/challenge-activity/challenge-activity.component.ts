@@ -54,17 +54,37 @@ export class ChallengeActivityComponent implements OnInit {
       practicalChallengeId: challenge.id,
     };
     this.service.startAttempt(request).subscribe({
-      next: (attempt) => {
-        this.attempts.update((current) => [attempt, ...current]);
-        this.startingChallengeId.set(null);
-        this.confirmation.set(`Intento iniciado para “${challenge.title}”.`);
-        this.activeTab.set('attempts');
-      },
+      next: (attempt) => this.startTutorSession(challenge, attempt),
       error: (error: HttpErrorResponse) => {
         this.startingChallengeId.set(null);
         this.error.set(this.errorMessage(error));
       },
     });
+  }
+
+  private startTutorSession(
+    challenge: PracticalChallengeSummary,
+    attempt: AttemptResponse,
+  ): void {
+    this.service.createTutorSession(attempt.id).subscribe({
+      next: () => this.finishAttemptStart(challenge, attempt, true),
+      error: () => this.finishAttemptStart(challenge, attempt, false),
+    });
+  }
+
+  private finishAttemptStart(
+    challenge: PracticalChallengeSummary,
+    attempt: AttemptResponse,
+    tutorReady: boolean,
+  ): void {
+    this.attempts.update((current) => [attempt, ...current]);
+    this.startingChallengeId.set(null);
+    this.confirmation.set(
+      tutorReady
+        ? `Intento iniciado para “${challenge.title}” con el tutor IA listo.`
+        : `Intento iniciado para “${challenge.title}”. El tutor IA se reintentará al abrirlo.`,
+    );
+    this.activeTab.set('attempts');
   }
 
   protected loadActivity(): void {

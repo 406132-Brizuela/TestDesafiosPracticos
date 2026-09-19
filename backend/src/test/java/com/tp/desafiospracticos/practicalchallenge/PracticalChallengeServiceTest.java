@@ -4,6 +4,17 @@ import com.tp.desafiospracticos.attemptdraft.AttemptDraftJpaRepository;
 import com.tp.desafiospracticos.motor.MotorChallenge;
 import com.tp.desafiospracticos.motor.MotorChallengeResolver;
 import com.tp.desafiospracticos.motor.MotorDesafioClient;
+import com.tp.desafiospracticos.tutor.TutorSession;
+import com.tp.desafiospracticos.tutor.TutorSessionClient;
+import com.tp.desafiospracticos.tutor.TutorSessionResponse;
+import com.tp.desafiospracticos.tutor.TutorSessionService;
+import com.tp.desafiospracticos.tutor.TutorMessage;
+import com.tp.desafiospracticos.tutor.TutorMessageCommand;
+import com.tp.desafiospracticos.tutor.TutorMessageRequest;
+import com.tp.desafiospracticos.tutor.TutorMessageResponse;
+import com.tp.desafiospracticos.tutor.TutorAccessDeniedException;
+import com.tp.desafiospracticos.tutor.TutorInteractionNotAllowedException;
+import com.tp.desafiospracticos.tutor.TutorRemoteSessionNotFoundException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,6 +25,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
@@ -24,18 +36,25 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @Import({PracticalChallengeService.class, PracticalChallengeCatalog.class, AttemptService.class,
-        MotorChallengeResolver.class, LoggingDesafioContenidoEventPublisher.class})
+        MotorChallengeResolver.class, LoggingDesafioContenidoEventPublisher.class,
+        TutorSessionService.class})
 class PracticalChallengeServiceTest {
 
     private final Set<String> motorIds = new HashSet<>();
 
     @MockBean
     private MotorDesafioClient motorClient;
+
+    @MockBean
+    private TutorSessionClient tutorClient;
 
     @Autowired
     private PracticalChallengeService service;
@@ -51,6 +70,9 @@ class PracticalChallengeServiceTest {
 
     @Autowired
     private AttemptJpaRepository attemptRepository;
+
+    @Autowired
+    private TutorSessionService tutorSessionService;
 
     @Autowired
     private AttemptDraftJpaRepository draftRepository;
@@ -74,6 +96,22 @@ class PracticalChallengeServiceTest {
                     .map(id -> new MotorChallenge(id, "Sumar dos números", Difficulty.BASICO))
                     .toList();
         });
+        when(tutorClient.createSession(anyString(), anyString())).thenAnswer(invocation ->
+                new TutorSession(
+                        UUID.nameUUIDFromBytes(("tutor-session:" + invocation.<String>getArgument(0))
+                                .getBytes(StandardCharsets.UTF_8)).toString(),
+                        invocation.getArgument(0),
+                        invocation.getArgument(1),
+                        "ACTIVE"
+                ));
+        when(tutorClient.sendMessage(anyString(), any(TutorMessageCommand.class)))
+                .thenAnswer(invocation -> new TutorMessage(
+                        UUID.randomUUID().toString(),
+                        invocation.getArgument(0),
+                        "TUTOR",
+                        "El servicio de tutor IA se encuentra mockeado.",
+                        Instant.now()
+                ));
     }
 
     @Test
@@ -171,6 +209,89 @@ class PracticalChallengeServiceTest {
                 () -> attemptService.findById("no-existe", null));
         assertThrows(AttemptNotFoundException.class,
                 () -> attemptService.saveDraft("no-existe", "codigo", null));
+    }
+
+    @Test
+    void creaYAsociaUnaUnicaSesionDeTutorPorIntento() {
+        PracticalChallengeResponse challenge = service.create(request(), null);
+        AttemptResponse started = attemptService.start(
+                new AttemptCreateRequest(UUID.randomUUID().toString(), challenge.id()), null);
+
+        TutorSessionResponse first = tutorSessionService.createForAttempt(started.id(), null);
+        TutorSessionResponse repeated = tutorSessionService.createForAttempt(started.id(), null);
+        AttemptEntity persisted = attemptRepository.findById(started.id()).orElseThrow();
+
+        assertEquals(first.sessionId(), repeated.sessionId());
+        assertEquals(first.sessionId(), persisted.getLlmConversationId());
+        assertEquals("ACTIVE", first.status());
+        verify(tutorClient, times(2)).createSession(started.id(), challenge.id());
+    }
+
+    @Test
+    void validaElIntentoYEnviaSoloContextoAutorizadoAlTutor() {
+        PracticalChallengeResponse challenge = service.create(request(), null);
+        AttemptResponse started = attemptService.start(
+                new AttemptCreateRequest(UUID.randomUUID().toString(), challenge.id()), "student-1");
+        tutorSessionService.createForAttempt(started.id(), "student-1");
+
+        TutorMessageResponse response = tutorSessionService.sendMessage(
+                started.id(),
+                "student-1",
+                new TutorMessageRequest("¿Qué debería revisar?", "class Main { int resultado; }")
+        );
+
+        assertEquals("TUTOR", response.role());
+        var commandCaptor = org.mockito.ArgumentCaptor.forClass(TutorMessageCommand.class);
+        verify(tutorClient).sendMessage(anyString(), commandCaptor.capture());
+        TutorMessageCommand command = commandCaptor.getValue();
+        assertEquals(started.id(), command.attemptId());
+        assertEquals(challenge.id(), command.context().practicalChallengeId());
+        assertEquals("Leer dos números y mostrar su suma.", command.context().statement());
+        assertEquals("class Main { int resultado; }", command.context().currentCode());
+    }
+
+    @Test
+    void recreaLaSesionYReintentaCuandoElMockPerdioSuMemoria() {
+        PracticalChallengeResponse challenge = service.create(request(), null);
+        AttemptResponse started = attemptService.start(
+                new AttemptCreateRequest(UUID.randomUUID().toString(), challenge.id()), "student-1");
+        tutorSessionService.createForAttempt(started.id(), "student-1");
+
+        when(tutorClient.sendMessage(anyString(), any(TutorMessageCommand.class)))
+                .thenThrow(new TutorRemoteSessionNotFoundException())
+                .thenAnswer(invocation -> new TutorMessage(
+                        UUID.randomUUID().toString(),
+                        invocation.getArgument(0),
+                        "TUTOR",
+                        "El servicio de tutor IA se encuentra mockeado.",
+                        Instant.now()
+                ));
+
+        TutorMessageResponse response = tutorSessionService.sendMessage(
+                started.id(),
+                "student-1",
+                new TutorMessageRequest("Necesito una pista", "class Main {}")
+        );
+
+        assertEquals("TUTOR", response.role());
+        verify(tutorClient, times(2)).createSession(started.id(), challenge.id());
+        verify(tutorClient, times(2)).sendMessage(anyString(), any(TutorMessageCommand.class));
+    }
+
+    @Test
+    void rechazaTutorParaOtroUsuarioOSinSesion() {
+        PracticalChallengeResponse challenge = service.create(request(), null);
+        AttemptResponse ownedAttempt = attemptService.start(
+                new AttemptCreateRequest(UUID.randomUUID().toString(), challenge.id()), "student-1");
+
+        assertThrows(TutorAccessDeniedException.class,
+                () -> tutorSessionService.createForAttempt(ownedAttempt.id(), "student-2"));
+        assertThrows(TutorInteractionNotAllowedException.class,
+                () -> tutorSessionService.sendMessage(
+                        ownedAttempt.id(),
+                        "student-1",
+                        new TutorMessageRequest("Ayuda", null)
+                ));
     }
 
     @Test

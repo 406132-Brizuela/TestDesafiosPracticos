@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: llm-tutor-mock
+
+server:
+  port: ${SERVER_PORT:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

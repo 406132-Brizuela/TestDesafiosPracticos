@@ -2,6 +2,10 @@ package com.tp.desafiospracticos.practicalchallenge;
 
 import com.tp.desafiospracticos.motor.MotorChallengeNotFoundException;
 import com.tp.desafiospracticos.motor.MotorCatalogController;
+import com.tp.desafiospracticos.tutor.TutorServiceUnavailableException;
+import com.tp.desafiospracticos.tutor.TutorAccessDeniedException;
+import com.tp.desafiospracticos.tutor.TutorInteractionNotAllowedException;
+import com.tp.desafiospracticos.tutor.TutorSessionController;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +22,8 @@ import java.util.Map;
         AttemptQueryController.class,
         LocalAttemptCreationController.class,
         LocalAttemptDraftController.class,
-        MotorCatalogController.class
+        MotorCatalogController.class,
+        TutorSessionController.class
 })
 public class PracticalChallengeExceptionHandler {
 
@@ -56,6 +61,25 @@ public class PracticalChallengeExceptionHandler {
     ResponseEntity<ApiError> motorChallengeNotFound(MotorChallengeNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(new ApiError(
                 HttpStatus.UNPROCESSABLE_ENTITY.value(), exception.getMessage(), Map.of()));
+    }
+
+    @ExceptionHandler(TutorServiceUnavailableException.class)
+    ResponseEntity<ApiError> tutorUnavailable(TutorServiceUnavailableException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(new ApiError(
+                HttpStatus.BAD_GATEWAY.value(), exception.getMessage(), Map.of()));
+    }
+
+    @ExceptionHandler(TutorAccessDeniedException.class)
+    ResponseEntity<ApiError> tutorAccessDenied(TutorAccessDeniedException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiError(
+                HttpStatus.FORBIDDEN.value(), exception.getMessage(), Map.of()));
+    }
+
+    @ExceptionHandler(TutorInteractionNotAllowedException.class)
+    ResponseEntity<ApiError> tutorInteractionNotAllowed(
+            TutorInteractionNotAllowedException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiError(
+                HttpStatus.CONFLICT.value(), exception.getMessage(), Map.of()));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

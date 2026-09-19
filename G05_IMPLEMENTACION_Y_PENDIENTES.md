@@ -203,7 +203,7 @@ Registra el inicio minimo de una resolucion.
 | `ref` | Referencia al commit/rama evaluado (DT-08); nullable, hoy siempre `null` |
 | `creation_datetime` | Fecha de inicio |
 | `submission_datetime` | Fecha futura de entrega |
-| `llm_conversation_id` | Referencia futura a una conversacion asistida |
+| `llm_conversation_id` | `sessionId` devuelto por el microservicio mock del tutor IA |
 | `user_id` | Usuario que inicio el intento |
 
 `user_id` se agrego para poder filtrar actividad por usuario cuando la aplicacion recibe identidad del Gateway.
@@ -460,12 +460,28 @@ La creacion de intentos se restringio a local para no publicar una API incomplet
 
 ### Asistencia con LLM
 
-`ATTEMPTS.llm_conversation_id` esta reservado, pero no se implemento:
+Se implemento el primer tramo de la integracion:
 
-- Creacion de conversaciones.
-- Asociacion con un proveedor o servicio de IA.
-- Historial de mensajes.
-- Privacidad y retencion.
+- `POST /api/desafiospracticos/intentos/{attemptId}/tutor/sesion` valida que
+  exista el intento y solicita por HTTP una sesion a `llm-mock`.
+- La operacion es idempotente por intento y persiste el `sessionId` en
+  `ATTEMPTS.llm_conversation_id`.
+- El frontend crea la sesion al iniciar el intento y la recupera o reintenta
+  al abrir la resolucion, donde muestra un sidebar plegable.
+- `POST /api/desafiospracticos/intentos/{attemptId}/tutor/mensajes` acepta el
+  mensaje y el codigo visible del editor.
+- Practical Challenges valida rol de alumno, ownership, existencia y estado
+  del intento, asociacion de la sesion y longitud del mensaje antes de llamar
+  al LLM.
+- El contexto autorizado contiene enunciado, codigo inicial y codigo actual;
+  no contiene tests privados ni soluciones.
+- `llm-mock` conserva en memoria los mensajes `STUDENT` y `TUTOR` y devuelve
+  una respuesta predeterminada indicando que el servicio esta mockeado.
+
+Todavia no se implemento:
+
+- Persistencia durable y recuperacion del historial desde el frontend.
+- Politicas definitivas de privacidad y retencion.
 - Limites de uso.
 - Reglas para evitar revelar soluciones o tests privados.
 

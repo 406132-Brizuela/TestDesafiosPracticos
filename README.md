@@ -14,6 +14,7 @@ Servicios:
 
 - Frontend: `http://localhost:4200`
 - Motor mock y selector de ejemplos: `http://localhost:8081`
+- Tutor IA mock: `http://localhost:8082`
 - Backend: `http://localhost:8080`
 - H2 Console: `http://localhost:8080/h2-console`
 
@@ -21,6 +22,13 @@ El camino recomendado para probar el contrato es abrir Motor mock en
 `http://localhost:8081`, elegir uno de sus tres desafíos y seguir el redirect
 al frontend. El backend valida y recupera título/dificultad consultando Motor
 por HTTP. Los datos de H2 se conservan en el volumen `backend-data`.
+
+Al iniciar un intento, el frontend crea de forma idempotente una sesión de
+tutor a través del backend; al abrir la resolución vuelve a recuperarla o
+reintenta su creación. El backend consulta por HTTP al servicio `llm-mock` y
+guarda el `sessionId` en `ATTEMPTS.llm_conversation_id`. El panel lateral del
+tutor es plegable y permite enviar mensajes. El mock conserva el historial en
+memoria y responde siempre que el servicio todavía está mockeado.
 
 ## Creación de desafíos G05
 
@@ -31,6 +39,12 @@ Esta primera versión permite guardar contenido práctico reutilizable, consulta
 Requisitos para ejecución manual: Java 21, Maven, Node.js 24 y npm. No requiere PostgreSQL.
 
 Primero levantar Motor mock, desde `motor-mock/`:
+
+```bash
+mvn spring-boot:run
+```
+
+Luego levantar el tutor IA mock, desde `llm-mock/`:
 
 ```bash
 mvn spring-boot:run
@@ -90,7 +104,14 @@ El sector implementado del diagrama contiene estas tablas:
 
 En esta versión los casos de prueba se modelan como pares de entrada/salida. Es una simplificación técnica temporal pendiente de acordar con Sandbox, no una exigencia del PRD.
 
-Los intentos locales sólo registran el inicio; el borrador temporal vive en `ATTEMPT_DRAFTS`. No equivalen a publicación ni entrega.
+Los intentos locales registran el inicio, pueden asociar una sesión mock del
+tutor IA y guardan el borrador temporal en `ATTEMPT_DRAFTS`. No equivalen a
+publicación ni entrega.
+
+Los mensajes del tutor pasan siempre por Practical Challenges. Antes de llamar
+al LLM, valida que el intento exista, pertenezca al usuario, siga activo, tenga
+una sesión asociada y que el mensaje respete el contrato. Solo envía el
+enunciado, código inicial y código visible; no envía tests privados.
 
 ## Verificación automatizada
 

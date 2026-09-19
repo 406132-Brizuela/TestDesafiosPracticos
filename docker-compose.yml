@@ -9,17 +9,28 @@ services:
       - "8081:8081"
     restart: unless-stopped
 
+  llm-mock:
+    build:
+      context: ./llm-mock
+    environment:
+      SERVER_PORT: 8082
+    ports:
+      - "8082:8082"
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
     depends_on:
       - motor-mock
+      - llm-mock
     environment:
       SPRING_PROFILES_ACTIVE: local
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: 8080
       MANAGEMENT_SERVER_ADDRESS: 0.0.0.0
       MOTOR_URL: http://motor-mock:8081
+      LLM_URL: http://llm-mock:8082
       SPRING_DATASOURCE_URL: jdbc:h2:file:/data/desafios-practicos
       SPRING_DATASOURCE_USERNAME: sa
       SPRING_DATASOURCE_PASSWORD: ""
