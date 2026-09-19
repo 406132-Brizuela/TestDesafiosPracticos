@@ -1,6 +1,12 @@
 import { Component, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import type { ChatMessage, IntegrityEvent, JavaCorrectionDimension, SubmissionResult } from '../challenge-types';
+import type {
+  ChatMessage,
+  IntegrityEvent,
+  JavaCorrectionDimension,
+  JavaDimensionState,
+  SubmissionResult,
+} from '../challenge-types';
 import type { ProjectFile } from '../projects';
 import { goBack, prettyJson } from '../shared';
 import { SessionService } from '../services/session.service';
@@ -20,6 +26,7 @@ interface RubricRow {
   contribution: number | null;
   source: string | null;
   counts: boolean;
+  state: JavaDimensionState;
 }
 
 // Orden y nombre en español fijos: la rúbrica siempre muestra las 4 filas, aunque
@@ -40,6 +47,14 @@ const DIMENSION_ORDER = ['correctness', 'performance', 'complexity', 'style'];
     <section class="view student-submitted">
       @if (payload(); as payload) {
         <div class="result-card" [class.result-centered]="isStudent()">
+          <!-- 0. Corrección parcial: el sandbox no respondió, esto no es un resultado final -->
+          @if (isPartialPending()) {
+            <div class="result-status-note">
+              Corrección parcial — pendiente. Las dimensiones estáticas ya tienen nota; las que
+              dependen del sandbox se van a completar cuando esté disponible.
+            </div>
+          }
+
           <!-- 1. Encabezado: veredicto + calidad, con el color como barra de progreso hasta {quality}% -->
           <div class="result-verdict" [class.ok]="isOk(payload.submission.verdict)" [class.fail]="!isOk(payload.submission.verdict)">
             <div class="result-verdict-fill" [style.width.%]="qualityPercent()"></div>
@@ -65,14 +80,21 @@ const DIMENSION_ORDER = ['correctness', 'performance', 'complexity', 'style'];
             <div class="rubric">
               <p class="rubric-title">Rúbrica de evaluación</p>
               @for (row of rubricRows(); track row.id) {
-                <div class="rubric-row" [class.rubric-row-off]="!row.counts">
+                <div
+                  class="rubric-row"
+                  [class.rubric-row-off]="!row.counts"
+                  [class.rubric-row-pending]="row.state === 'PENDING_SANDBOX'"
+                  [class.rubric-row-na]="row.state === 'NOT_APPLICABLE'"
+                >
                   <div class="rubric-row-top">
                     <span class="rubric-row-name">{{ row.label }}</span>
-                    <span class="rubric-row-score mono">{{ row.subScore ?? '—' }}/100</span>
+                    <span class="rubric-row-score mono">{{ scoreLabel(row) }}</span>
                   </div>
-                  <div class="rubric-bar">
-                    <div class="rubric-bar-fill" [style.width.%]="row.subScore ?? 0"></div>
-                  </div>
+                  @if (row.state === 'OK') {
+                    <div class="rubric-bar">
+                      <div class="rubric-bar-fill" [style.width.%]="row.subScore ?? 0"></div>
+                    </div>
+                  }
                   <div class="rubric-row-meta">
                     <span>Peso {{ row.weight }}</span>
                     @if (row.contribution !== null) {
@@ -83,6 +105,12 @@ const DIMENSION_ORDER = ['correctness', 'performance', 'complexity', 'style'];
                     }
                     @if (!row.counts) {
                       <span class="rubric-off-note">no cuenta en este perfil</span>
+                    }
+                    @if (row.state === 'PENDING_SANDBOX') {
+                      <span class="rubric-off-note">se reintenta cuando el sandbox esté disponible</span>
+                    }
+                    @if (row.state === 'NOT_APPLICABLE') {
+                      <span class="rubric-off-note">sin analizador para este lenguaje</span>
                     }
                   </div>
                 </div>
@@ -175,6 +203,7 @@ export class ChallengeResultComponent implements OnInit {
 
   protected readonly payload = signal<SubmitPayload | null>(null);
   protected readonly engine = computed(() => this.payload()?.submission.engine ?? null);
+  protected readonly isPartialPending = computed(() => this.engine()?.status === 'PARTIAL_PENDING');
   // Ancho del relleno del header: clampeado 0-100; sin quality (p. ej. ERROR_TECNICO,
   // sin score) no hay nada que rellenar.
   protected readonly qualityPercent = computed(() => {
@@ -196,6 +225,7 @@ export class ChallengeResultComponent implements OnInit {
         contribution: found?.contribution ?? null,
         source: found?.source ?? null,
         counts: (found?.weight ?? 0) > 0,
+        state: found?.state ?? 'OK',
       };
     });
   });
@@ -211,6 +241,17 @@ export class ChallengeResultComponent implements OnInit {
   protected readonly session = inject(SessionService);
   protected readonly isStudent = computed(() => this.session.role() === 'ALUMNO');
   private readonly router = inject(Router);
+
+  /** "pendiente" (transitorio, sandbox caído) / "no aplica" (final, sin analizador) / nota numérica. */
+  protected scoreLabel(row: RubricRow): string {
+    if (row.state === 'PENDING_SANDBOX') {
+      return 'pendiente';
+    }
+    if (row.state === 'NOT_APPLICABLE') {
+      return 'no aplica';
+    }
+    return `${row.subScore ?? '—'}/100`;
+  }
 
   protected isOk(verdict: string): boolean {
     return verdict === 'SUPERADO';

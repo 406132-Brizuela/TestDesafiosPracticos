@@ -333,7 +333,9 @@ export interface JavaEvaluationRequest {
 
 export type JavaEvaluationStatus = 'COMPLETED' | 'NO_COMPILE' | 'PARTIAL_PENDING';
 export type JavaSuggestedVerdict = 'APPROVED' | 'NOT_APPROVED' | 'PENDING';
-export type JavaDimensionState = 'OK' | 'PENDING_SANDBOX';
+// PENDING_SANDBOX: transitorio, se reintenta cuando el sandbox vuelva. NOT_APPLICABLE:
+// final, no hay analizador estático para el lenguaje del request (nunca se reintenta).
+export type JavaDimensionState = 'OK' | 'PENDING_SANDBOX' | 'NOT_APPLICABLE';
 
 export interface JavaCorrectionDimension {
   dimension: string;

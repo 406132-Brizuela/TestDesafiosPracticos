@@ -1205,6 +1205,16 @@ kbd {
   color: #000000;
 }
 
+/* Corrección parcial (status PARTIAL_PENDING): el sandbox no respondió, el resultado
+   no es final. Borde punteado en vez de color — mismo lenguaje visual monocromo que
+   .rubric-row-pending, para que se lea como "en curso", no como error. */
+.result-status-note {
+  padding: 10px 12px;
+  font-size: 12.5px;
+  font-style: italic;
+  border: 1px dashed #000000;
+}
+
 .rubric {
   display: flex;
   flex-direction: column;
@@ -1230,6 +1240,18 @@ kbd {
 
 .rubric-row-off {
   opacity: 0.45;
+}
+
+/* PENDING_SANDBOX: transitorio, se va a completar — borde punteado, SIN atenuar
+   (a diferencia de .rubric-row-na, que es final). */
+.rubric-row-pending {
+  border-style: dashed;
+}
+
+/* NOT_APPLICABLE: final (no hay analizador para el lenguaje) — atenuado, no se reintenta. */
+.rubric-row-na {
+  opacity: 0.45;
+  font-style: italic;
 }
 
 .rubric-row-top {
