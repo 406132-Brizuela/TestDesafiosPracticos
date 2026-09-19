@@ -1,6 +1,7 @@
 package com.tp.desafiospracticos.engine.dimension;
 
 import com.tp.desafiospracticos.challenge.TestCase;
+import com.tp.desafiospracticos.engine.SourceFile;
 import com.tp.desafiospracticos.engine.metrics.ExecutionMetrics;
 import com.tp.desafiospracticos.engine.profile.EvaluationProfile;
 import com.tp.desafiospracticos.engine.staticanalysis.StaticAnalysisResult;
@@ -13,7 +14,7 @@ import java.util.List;
  */
 public record EvaluationContext(
         String lenguaje,
-        String code,
+        List<SourceFile> files,
         List<TestCase> tests,
         ExecutionMetrics metrics,
         StaticAnalysisResult staticAnalysis,

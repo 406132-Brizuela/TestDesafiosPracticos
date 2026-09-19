@@ -15,7 +15,7 @@ export interface EvaluationRequest {
 
 export type EvaluationStatus = 'COMPLETED' | 'NO_COMPILE' | 'PARTIAL_PENDING';
 export type Verdict = 'APPROVED' | 'NOT_APPROVED' | 'PENDING';
-export type DimensionState = 'OK' | 'PENDING_SANDBOX';
+export type DimensionState = 'OK' | 'PENDING_SANDBOX' | 'NOT_APPLICABLE';
 
 export interface CorrectionDimension {
   dimension: string;

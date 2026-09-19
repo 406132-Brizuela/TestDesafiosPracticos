@@ -19,6 +19,7 @@ import com.github.javaparser.ast.stmt.SwitchEntry;
 import com.github.javaparser.ast.stmt.SwitchStmt;
 import com.github.javaparser.ast.stmt.TryStmt;
 import com.github.javaparser.ast.stmt.WhileStmt;
+import com.tp.desafiospracticos.engine.SourceFile;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -40,15 +41,13 @@ public class JavaStaticAnalyzer implements StaticAnalyzer {
     private static final Pattern NOMBRE_NO_DESCRIPTIVO = Pattern.compile("^(tmp|aux\\d*|foo|bar)$");
 
     @Override
-    public StaticAnalysisResult analyze(String lenguaje, String code) {
-        if (!"java".equalsIgnoreCase(lenguaje)) {
-            return StaticAnalysisResult.empty();
-        }
+    public boolean supports(String lenguaje) {
+        return "java".equalsIgnoreCase(lenguaje);
+    }
 
-        CompilationUnit unit;
-        try {
-            unit = StaticJavaParser.parse(code);
-        } catch (ParseProblemException e) {
+    @Override
+    public StaticAnalysisResult analyze(String lenguaje, List<SourceFile> files) {
+        if (!"java".equalsIgnoreCase(lenguaje)) {
             return StaticAnalysisResult.empty();
         }
 
@@ -57,28 +56,42 @@ public class JavaStaticAnalyzer implements StaticAnalyzer {
         Map<String, Integer> lineasPorMetodo = new LinkedHashMap<>();
         List<String> antipatrones = new ArrayList<>();
         Set<String> nombresNoDescriptivos = new LinkedHashSet<>();
+        // Con un solo archivo los nombres de metodo quedan igual que antes (sin prefijo),
+        // para que el resultado sea byte-a-byte identico al de un submission de un archivo.
+        boolean multiArchivo = files.size() > 1;
 
-        for (MethodDeclaration metodo : unit.findAll(MethodDeclaration.class)) {
-            String nombreMetodo = metodo.getNameAsString();
-            complejidadPorMetodo.put(nombreMetodo, cyclomaticComplexity(metodo));
-            metodo.getRange().ifPresent(r -> lineasPorMetodo.put(nombreMetodo, r.end.line - r.begin.line + 1));
-
-            for (Parameter parametro : metodo.getParameters()) {
-                agregarSiNoDescriptivo(parametro.getNameAsString(), nombresNoDescriptivos);
+        for (SourceFile file : files) {
+            CompilationUnit unit;
+            try {
+                unit = StaticJavaParser.parse(file.content());
+            } catch (ParseProblemException e) {
+                continue;
             }
 
-            if (metodo.getBody().isPresent()) {
-                NestingCounters counters = new NestingCounters();
-                walk(metodo.getBody().get(), 0, counters);
-                nestingDepthMax = Math.max(nestingDepthMax, counters.maxDepth);
-                if (counters.tripleNestedLoop) {
-                    antipatrones.add("Bucle anidado triple detectado en el metodo '" + nombreMetodo + "'");
+            String prefijo = multiArchivo ? simpleName(file.path()) + "." : "";
+
+            for (MethodDeclaration metodo : unit.findAll(MethodDeclaration.class)) {
+                String nombreMetodo = prefijo + metodo.getNameAsString();
+                complejidadPorMetodo.put(nombreMetodo, cyclomaticComplexity(metodo));
+                metodo.getRange().ifPresent(r -> lineasPorMetodo.put(nombreMetodo, r.end.line - r.begin.line + 1));
+
+                for (Parameter parametro : metodo.getParameters()) {
+                    agregarSiNoDescriptivo(parametro.getNameAsString(), nombresNoDescriptivos);
+                }
+
+                if (metodo.getBody().isPresent()) {
+                    NestingCounters counters = new NestingCounters();
+                    walk(metodo.getBody().get(), 0, counters);
+                    nestingDepthMax = Math.max(nestingDepthMax, counters.maxDepth);
+                    if (counters.tripleNestedLoop) {
+                        antipatrones.add("Bucle anidado triple detectado en el metodo '" + nombreMetodo + "'");
+                    }
                 }
             }
-        }
 
-        for (VariableDeclarator variable : unit.findAll(VariableDeclarator.class)) {
-            agregarSiNoDescriptivo(variable.getNameAsString(), nombresNoDescriptivos);
+            for (VariableDeclarator variable : unit.findAll(VariableDeclarator.class)) {
+                agregarSiNoDescriptivo(variable.getNameAsString(), nombresNoDescriptivos);
+            }
         }
 
         return new StaticAnalysisResult(
@@ -88,6 +101,13 @@ public class JavaStaticAnalyzer implements StaticAnalyzer {
                 List.copyOf(nombresNoDescriptivos),
                 lineasPorMetodo
         );
+    }
+
+    private String simpleName(String path) {
+        String normalizado = path.replace('\\', '/');
+        int barra = normalizado.lastIndexOf('/');
+        String archivo = barra >= 0 ? normalizado.substring(barra + 1) : normalizado;
+        return archivo.endsWith(".java") ? archivo.substring(0, archivo.length() - ".java".length()) : archivo;
     }
 
     private int cyclomaticComplexity(MethodDeclaration metodo) {

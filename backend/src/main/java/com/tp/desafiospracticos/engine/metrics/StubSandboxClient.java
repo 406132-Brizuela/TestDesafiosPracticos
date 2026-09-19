@@ -1,6 +1,7 @@
 package com.tp.desafiospracticos.engine.metrics;
 
 import com.tp.desafiospracticos.challenge.TestCase;
+import com.tp.desafiospracticos.engine.SourceFile;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -20,7 +21,7 @@ import java.util.List;
 public class StubSandboxClient implements SandboxClient {
 
     @Override
-    public ExecutionMetrics run(String lenguaje, String code, List<TestCase> tests) {
+    public ExecutionMetrics run(String lenguaje, List<SourceFile> files, List<TestCase> tests) {
         List<TestResult> results = tests.stream()
                 .map(testCase -> new TestResult(testCase.id(), true, testCase.expected(), testCase.expected()))
                 .toList();
@@ -29,7 +30,7 @@ public class StubSandboxClient implements SandboxClient {
     }
 
     @Override
-    public CompileCheckResult compileOnly(String lenguaje, String code) {
+    public CompileCheckResult compileOnly(String lenguaje, List<SourceFile> files) {
         return new CompileCheckResult(true, List.of());
     }
 }

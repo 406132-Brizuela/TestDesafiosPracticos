@@ -80,6 +80,12 @@
   color: #ffd7dd;
 }
 
+.alert--warning {
+  background: rgba(251, 191, 36, 0.14);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #ffe7b3;
+}
+
 .alert__icon {
   font-size: 1rem;
 }
@@ -406,6 +412,22 @@
   font-family: var(--font-mono);
   font-weight: 600;
   color: var(--text-primary);
+}
+
+/* NOT_APPLICABLE: gris/atenuado, sin analizador — final, nada más que mostrar acá. */
+.dimension--not-applicable {
+  opacity: 0.5;
+}
+
+.dimension__score--muted {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* PENDING_SANDBOX: NO atenuado (a diferencia de NOT_APPLICABLE) — se va a completar. */
+.dimension__score--pending {
+  font-weight: 500;
+  color: #fbbf24;
 }
 
 .dimension__score-max {

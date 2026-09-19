@@ -1,6 +1,7 @@
 package com.tp.desafiospracticos.engine.metrics;
 
 import com.tp.desafiospracticos.challenge.TestCase;
+import com.tp.desafiospracticos.engine.SourceFile;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
@@ -25,8 +26,9 @@ import java.util.stream.Stream;
  * Reemplazar por un sandbox aislado real (contenedor efimero, gVisor, firecracker, etc.) antes
  * de aceptar codigo de usuarios no confiables.
  * <p>
- * Asume que el codigo define {@code public class Main} con un {@code main(String[])} que lee
- * de entrada estandar.
+ * Soporta submissions de un solo archivo (convencion: {@code public class Main}) o
+ * multi-archivo ({@link SourceFile#path()} puede incluir subcarpetas de package). Con un solo
+ * archivo, el comportamiento es identico al de antes de soportar multi-archivo.
  */
 @Component
 @Primary
@@ -36,14 +38,17 @@ public class LocalSandboxClient implements SandboxClient {
     private static final long TIMEOUT_SECONDS = 5;
     private static final String JAVA_HOME = System.getProperty("java.home");
 
-    // javac -> "Main.java:6: error: ';' expected" (idem para "warning:"). En Windows la
-    // ruta es absoluta con la letra de unidad ("C:\...\Main.java:6: ..."), por eso el
-    // prefijo no puede excluir ':' — solo importa el ".java:<linea>:" final de la ruta.
+    // javac -> "Main.java:6: error: ';' expected" (idem para "warning:"). Los archivos se
+    // pasan a javac con su path RELATIVO al workDir (nunca absoluto), asi que no hay que
+    // lidiar con el ':' de la letra de unidad de Windows en el prefijo.
     private static final Pattern JAVAC_DIAGNOSTIC =
-            Pattern.compile("^.*\\.java:(\\d+):\\s*(error|warning):\\s*(.*)$");
+            Pattern.compile("^(.*\\.java):(\\d+):\\s*(error|warning):\\s*(.*)$");
+
+    private static final Pattern MAIN_METHOD =
+            Pattern.compile("\\b(?:public\\s+static|static\\s+public)\\s+void\\s+main\\s*\\(");
 
     @Override
-    public CompileCheckResult compileOnly(String lenguaje, String code) {
+    public CompileCheckResult compileOnly(String lenguaje, List<SourceFile> files) {
         Path workDir;
         try {
             workDir = Files.createTempDirectory("sandbox-compile-");
@@ -51,9 +56,8 @@ public class LocalSandboxClient implements SandboxClient {
             throw new IllegalStateException("No se pudo crear el directorio temporal del sandbox", e);
         }
         try {
-            Path sourceFile = workDir.resolve(MAIN_CLASS + ".java");
-            Files.writeString(sourceFile, code, StandardCharsets.UTF_8);
-            return compileWithDiagnostics(workDir, sourceFile);
+            writeFiles(workDir, files);
+            return compileWithDiagnostics(workDir, files);
         } catch (IOException e) {
             throw new IllegalStateException("Error de I/O compilando en el sandbox local", e);
         } finally {
@@ -62,7 +66,7 @@ public class LocalSandboxClient implements SandboxClient {
     }
 
     @Override
-    public ExecutionMetrics run(String lenguaje, String code, List<TestCase> tests) {
+    public ExecutionMetrics run(String lenguaje, List<SourceFile> files, List<TestCase> tests) {
         Path workDir;
         try {
             workDir = Files.createTempDirectory("sandbox-");
@@ -71,19 +75,20 @@ public class LocalSandboxClient implements SandboxClient {
         }
 
         try {
-            Path sourceFile = workDir.resolve(MAIN_CLASS + ".java");
-            Files.writeString(sourceFile, code, StandardCharsets.UTF_8);
+            writeFiles(workDir, files);
 
-            if (!compile(workDir, sourceFile)) {
+            if (!compileWithDiagnostics(workDir, files).compiles()) {
                 return new ExecutionMetrics(false, tests.size(), 0, 0L, false, List.of());
             }
+
+            String mainClass = resolveMainClass(files);
 
             List<TestResult> results = new ArrayList<>();
             int testsPassed = 0;
             boolean timedOut = false;
             long startNanos = System.nanoTime();
             for (TestCase testCase : tests) {
-                TestResult result = runTestCase(workDir, testCase);
+                TestResult result = runTestCase(workDir, mainClass, testCase);
                 if (result.passed()) {
                     testsPassed++;
                 }
@@ -102,8 +107,23 @@ public class LocalSandboxClient implements SandboxClient {
         }
     }
 
-    private boolean compile(Path workDir, Path sourceFile) throws IOException {
-        return compileWithDiagnostics(workDir, sourceFile).compiles();
+    /**
+     * Escribe cada archivo en el temp dir respetando su {@code path} (incluidas subcarpetas
+     * de package). Se valida que el path resuelto no escape del temp dir: el codigo del
+     * submission no es de confianza (ver DEV ONLY / INSEGURO en la clase).
+     */
+    private void writeFiles(Path workDir, List<SourceFile> files) throws IOException {
+        Path workDirNormalizado = workDir.normalize();
+        for (SourceFile file : files) {
+            Path destino = workDir.resolve(file.path()).normalize();
+            if (!destino.startsWith(workDirNormalizado)) {
+                throw new IllegalArgumentException("Path de archivo invalido: " + file.path());
+            }
+            if (destino.getParent() != null) {
+                Files.createDirectories(destino.getParent());
+            }
+            Files.writeString(destino, file.content(), StandardCharsets.UTF_8);
+        }
     }
 
     /**
@@ -112,8 +132,14 @@ public class LocalSandboxClient implements SandboxClient {
      * esperamos a que el proceso termine (con timeout) ANTES de leer stdout, para no
      * arriesgar bloquear el hilo si javac quedara colgado sin cerrar el stream.
      */
-    private CompileCheckResult compileWithDiagnostics(Path workDir, Path sourceFile) throws IOException {
-        Process process = new ProcessBuilder(toolPath("javac"), sourceFile.toString())
+    private CompileCheckResult compileWithDiagnostics(Path workDir, List<SourceFile> files) throws IOException {
+        List<String> comando = new ArrayList<>();
+        comando.add(toolPath("javac"));
+        for (SourceFile file : files) {
+            comando.add(file.path());
+        }
+
+        Process process = new ProcessBuilder(comando)
                 .directory(workDir.toFile())
                 .redirectErrorStream(true)
                 .start();
@@ -141,9 +167,10 @@ public class LocalSandboxClient implements SandboxClient {
         for (String rawLine : javacOutput.split("\n")) {
             Matcher matcher = JAVAC_DIAGNOSTIC.matcher(rawLine.strip());
             if (matcher.matches()) {
-                int line = Integer.parseInt(matcher.group(1));
-                String message = matcher.group(2) + ": " + matcher.group(3);
-                diagnostics.add(new CompileDiagnostic(line, message));
+                String path = matcher.group(1);
+                int line = Integer.parseInt(matcher.group(2));
+                String message = matcher.group(3) + ": " + matcher.group(4);
+                diagnostics.add(new CompileDiagnostic(path, line, message));
             }
         }
         if (diagnostics.isEmpty()) {
@@ -152,10 +179,45 @@ public class LocalSandboxClient implements SandboxClient {
         return diagnostics;
     }
 
-    private TestResult runTestCase(Path workDir, TestCase testCase) {
+    /**
+     * Si hay exactamente un archivo con {@code public static void main}, se ejecuta esa clase
+     * (fully-qualified segun su path/package). Si no, se cae a la convencion previa: la clase
+     * {@value #MAIN_CLASS}. Con un solo archivo ("Main.java") ambos caminos coinciden.
+     */
+    private String resolveMainClass(List<SourceFile> files) {
+        List<SourceFile> conMain = files.stream()
+                .filter(file -> MAIN_METHOD.matcher(file.content()).find())
+                .toList();
+
+        if (conMain.size() == 1) {
+            return fullyQualifiedClassName(conMain.get(0).path());
+        }
+
+        return files.stream()
+                .filter(file -> MAIN_CLASS.equals(simpleClassName(file.path())))
+                .findFirst()
+                .map(file -> fullyQualifiedClassName(file.path()))
+                .orElse(MAIN_CLASS);
+    }
+
+    private String fullyQualifiedClassName(String path) {
+        String normalizado = path.replace('\\', '/');
+        if (normalizado.endsWith(".java")) {
+            normalizado = normalizado.substring(0, normalizado.length() - ".java".length());
+        }
+        return normalizado.replace('/', '.');
+    }
+
+    private String simpleClassName(String path) {
+        String fqcn = fullyQualifiedClassName(path);
+        int punto = fqcn.lastIndexOf('.');
+        return punto >= 0 ? fqcn.substring(punto + 1) : fqcn;
+    }
+
+    private TestResult runTestCase(Path workDir, String mainClass, TestCase testCase) {
         Process process;
         try {
-            process = new ProcessBuilder(toolPath("java"), "-cp", workDir.toString(), MAIN_CLASS)
+            process = new ProcessBuilder(toolPath("java"), "-cp", workDir.toString(), mainClass)
                     .directory(workDir.toFile())
                     .redirectErrorStream(false)
                     .start();

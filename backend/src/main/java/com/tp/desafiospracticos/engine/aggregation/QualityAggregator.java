@@ -14,6 +14,12 @@ import java.util.List;
  * Calcula la quality final aplicando el cap de correctness: si correctness no alcanza
  * el correctnessThreshold del perfil, ninguna otra dimension acredita y la quality queda
  * igualada al subScore de correctness. suggestedVerdict compara contra el approvalThreshold.
+ * <p>
+ * La suma de contribuciones se reponderaa sobre las dimensiones APLICABLES (las que tienen
+ * subScore real, o sea NI PENDING_SANDBOX ni NOT_APPLICABLE): se divide por la suma de sus
+ * pesos, no por 100 fijo. Cuando todas las dimensiones del perfil aplican y sus pesos suman
+ * 100 (caso Java hoy), dividir por la suma de pesos o por 100 da lo mismo — es un no-op,
+ * retrocompatible por construccion.
  */
 @Component
 public class QualityAggregator {
@@ -39,11 +45,19 @@ public class QualityAggregator {
     }
 
     private BigDecimal sumaDeContribuciones(List<CorrectionDimension> dimensions) {
-        BigDecimal suma = dimensions.stream()
+        // Aplicable = tiene subScore real (se calculó): ni PENDING_SANDBOX ni NOT_APPLICABLE.
+        List<CorrectionDimension> aplicables = dimensions.stream()
                 .filter(dimension -> dimension.subScore() != null)
+                .toList();
+
+        int pesoAplicable = aplicables.stream().mapToInt(CorrectionDimension::weight).sum();
+        if (pesoAplicable == 0) {
+            return BigDecimal.ZERO.setScale(SCALE, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal sumaPonderada = aplicables.stream()
                 .map(dimension -> BigDecimal.valueOf(dimension.subScore()).multiply(BigDecimal.valueOf(dimension.weight())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(100), SCALE, RoundingMode.HALF_UP);
-        return suma.setScale(SCALE, RoundingMode.HALF_UP);
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return sumaPonderada.divide(BigDecimal.valueOf(pesoAplicable), SCALE, RoundingMode.HALF_UP);
     }
 }
