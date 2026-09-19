@@ -1140,13 +1140,180 @@ kbd {
   margin: 0;
 }
 
-.result-centered .fail-block {
+.result-centered .fail-block,
+.result-centered .result-verdict,
+.result-centered .rubric,
+.result-centered .feedback-block,
+.result-centered .traceability,
+.result-centered .json-details {
   text-align: left;
   width: 100%;
 }
 
 .result-centered .actions-bar {
   justify-content: center;
+}
+
+/* Vista humana del resultado del engine (rúbrica). Monocroma como el resto del
+   monaco; el único acento es el relleno de .result-verdict, que avanza hasta
+   {quality}% con los mismos verdes/rojos ya usados en .badge-difficulty-* — no
+   es una paleta nueva. El texto queda por encima (z-index) del relleno. */
+.result-verdict {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 14px 16px;
+  overflow: hidden;
+  background: #ececec;
+  border: 1px solid #000000;
+}
+
+.result-verdict-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transition: width 0.2s ease;
+}
+
+.result-verdict.ok .result-verdict-fill {
+  background: #a5d6a7;
+}
+
+.result-verdict.fail .result-verdict-fill {
+  background: #e57373;
+}
+
+.result-verdict-label {
+  position: relative;
+  z-index: 1;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.result-quality {
+  position: relative;
+  z-index: 1;
+  font-size: 14px;
+  color: #333333;
+}
+
+.result-quality strong {
+  font-size: 20px;
+  color: #000000;
+}
+
+.rubric {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rubric-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #666666;
+}
+
+.rubric-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid #000000;
+}
+
+.rubric-row-off {
+  opacity: 0.45;
+}
+
+.rubric-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rubric-row-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rubric-row-score {
+  font-size: 12.5px;
+}
+
+.rubric-bar {
+  height: 6px;
+  background: #ffffff;
+  border: 1px solid #000000;
+}
+
+.rubric-bar-fill {
+  height: 100%;
+  background: #000000;
+}
+
+.rubric-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: #666666;
+}
+
+.rubric-source {
+  padding: 1px 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #000000;
+  border: 1px solid #000000;
+}
+
+.rubric-off-note {
+  font-style: italic;
+}
+
+.feedback-block {
+  padding: 10px 12px;
+  border: 1px solid #000000;
+}
+
+.feedback-block .cmp-label {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.feedback-block p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #000000;
+}
+
+.traceability {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.json-details summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #000000;
+  padding: 4px 0;
+}
+
+.json-details .json-panel {
+  margin-top: 8px;
 }
 
 .modal-backdrop {

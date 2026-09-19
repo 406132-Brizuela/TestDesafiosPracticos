@@ -299,13 +299,36 @@ export interface JavaChallengeResponse {
 
 export type JavaEngineProfileId = 'introductorio' | 'avanzado';
 
-/** Espejo de web.EvaluationRequest (backend Java). */
+/** Espejo de web.CompileCheckRequest (backend Java) — POST /engine/compile. */
+export interface JavaCompileCheckRequest {
+  lenguaje: string;
+  code: string;
+}
+
+/** Espejo de engine.metrics.CompileDiagnostic (backend Java). */
+export interface JavaCompileDiagnostic {
+  line: number;
+  message: string;
+}
+
+/** Espejo de engine.metrics.CompileCheckResult (backend Java). Sin tests, sin quality. */
+export interface JavaCompileCheckResult {
+  compiles: boolean;
+  diagnostics: JavaCompileDiagnostic[];
+}
+
+/**
+ * Espejo de web.EvaluationRequest (backend Java). profileId es un campo de
+ * compat que el backend ignora: la rúbrica ahora es un dato del desafío
+ * (Challenge.evaluationProfileId), resuelto server-side por challengeId — el
+ * front ya no lo elige ni lo manda.
+ */
 export interface JavaEvaluationRequest {
   submissionId: string;
   challengeId: string;
   lenguaje: string;
   code: string;
-  profileId: JavaEngineProfileId | string | null;
+  profileId?: JavaEngineProfileId | string | null;
 }
 
 export type JavaEvaluationStatus = 'COMPLETED' | 'NO_COMPILE' | 'PARTIAL_PENDING';

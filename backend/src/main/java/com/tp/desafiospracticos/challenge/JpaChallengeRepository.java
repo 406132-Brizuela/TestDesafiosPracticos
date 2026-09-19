@@ -57,7 +57,8 @@ public class JpaChallengeRepository implements ChallengeRepository {
                 challenge.getStatement(),
                 lenguaje,
                 ChallengeMainFile.contentOf(challenge),
-                tests
+                tests,
+                challenge.getEvaluationProfileId()
         );
     }
 

@@ -15,6 +15,7 @@ import com.tp.desafiospracticos.engine.domain.EvaluationStatus;
 import com.tp.desafiospracticos.engine.domain.Verdict;
 import com.tp.desafiospracticos.engine.feedback.FeedbackGenerator;
 import com.tp.desafiospracticos.engine.gate.CompilationGate;
+import com.tp.desafiospracticos.engine.metrics.CompileCheckResult;
 import com.tp.desafiospracticos.engine.metrics.ExecutionMetrics;
 import com.tp.desafiospracticos.engine.metrics.SandboxClient;
 import com.tp.desafiospracticos.engine.profile.EvaluationProfile;
@@ -68,11 +69,22 @@ public class EngineServiceImpl implements EngineService {
         this.feedbackGenerator = feedbackGenerator;
     }
 
+    // Sin profile, sin challenge, sin static analysis, sin aggregation: compilar no es evaluar.
+    @Override
+    public CompileCheckResult compileOnly(String lenguaje, String code) {
+        return sandboxClient.compileOnly(lenguaje, code);
+    }
+
     @Override
     public EvaluationResult evaluate(EvaluationRequest request) {
-        String profileId = request.profileId() != null ? request.profileId() : DEFAULT_PROFILE_ID;
-        EvaluationProfile profile = profileRepository.findById(profileId);
+        // El perfil de evaluación es un dato DEL DESAFÍO (Challenge.evaluationProfileId),
+        // resuelto acá por challengeId — no algo que decida quien llama. request.profileId()
+        // queda sin usar (compat): el front ya no lo manda y aunque lo mandara se ignora.
         Challenge challenge = challengeRepository.findById(request.challengeId());
+        String profileId = challenge.evaluationProfileId() != null
+                ? challenge.evaluationProfileId()
+                : DEFAULT_PROFILE_ID;
+        EvaluationProfile profile = profileRepository.findById(profileId);
 
         // correctness siempre corre: el cap de calidad necesita su subScore aunque su peso sea 0.
         List<Evaluator> enabledEvaluators = evaluators.stream()

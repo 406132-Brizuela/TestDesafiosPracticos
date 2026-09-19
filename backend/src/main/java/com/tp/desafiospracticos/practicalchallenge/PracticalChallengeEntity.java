@@ -49,6 +49,12 @@ public class PracticalChallengeEntity implements Persistable<String> {
     @Column(name = "creation_datetime", nullable = false)
     private Instant creationDatetime;
 
+    // Rúbrica de evaluación del engine ("introductorio"/"avanzado") — dato del desafío, NO
+    // el ProfileEntity técnico (lenguaje/sandbox) de challengeType.getProfile(). Nullable:
+    // desafíos creados antes de este campo caen al default del engine (ver EngineServiceImpl).
+    @Column(name = "evaluation_profile_id")
+    private String evaluationProfileId;
+
     @OneToMany(mappedBy = "practicalChallenge", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ChallengeVersionEntity> versions = new ArrayList<>();
 
@@ -60,11 +66,18 @@ public class PracticalChallengeEntity implements Persistable<String> {
 
     public PracticalChallengeEntity(String id, ChallengeTypeEntity challengeType, String statement,
                                     String userCreatorId, Instant creationDatetime) {
+        this(id, challengeType, statement, userCreatorId, creationDatetime, null);
+    }
+
+    public PracticalChallengeEntity(String id, ChallengeTypeEntity challengeType, String statement,
+                                    String userCreatorId, Instant creationDatetime,
+                                    String evaluationProfileId) {
         this.id = id;
         this.challengeType = challengeType;
         this.statement = statement;
         this.userCreatorId = userCreatorId;
         this.creationDatetime = creationDatetime;
+        this.evaluationProfileId = evaluationProfileId;
         this.isNew = true;
     }
 
@@ -108,6 +121,10 @@ public class PracticalChallengeEntity implements Persistable<String> {
 
     public Instant getCreationDatetime() {
         return creationDatetime;
+    }
+
+    public String getEvaluationProfileId() {
+        return evaluationProfileId;
     }
 
     public List<ChallengeVersionEntity> getVersions() {

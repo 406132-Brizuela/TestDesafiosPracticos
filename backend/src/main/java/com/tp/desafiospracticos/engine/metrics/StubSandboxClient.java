@@ -27,4 +27,9 @@ public class StubSandboxClient implements SandboxClient {
 
         return new ExecutionMetrics(true, tests.size(), tests.size(), 0L, false, results);
     }
+
+    @Override
+    public CompileCheckResult compileOnly(String lenguaje, String code) {
+        return new CompileCheckResult(true, List.of());
+    }
 }

@@ -16,8 +16,8 @@ import type {
   ChatMessage,
   FailingTest,
   IntegrityEvent,
+  JavaCompileCheckResult,
   JavaCorrectionDimension,
-  JavaEngineProfileId,
   Verdict,
 } from '../challenge-types';
 import {
@@ -111,19 +111,12 @@ function formatCountdown(ms: number): string {
                   }
                 </div>
                 <div class="tabs-actions">
-                  <label class="muted small" title="Rúbrica de evaluación del engine">
-                    Perfil
-                    <select [value]="profileId()" (change)="onProfileChange($event)">
-                      <option value="introductorio">introductorio</option>
-                      <option value="avanzado">avanzado</option>
-                    </select>
-                  </label>
                   <button
                     type="button"
                     class="btn btn-primary"
                     [disabled]="busy()"
                     (click)="compile()"
-                    title="Evaluar contra el engine (F5)"
+                    title="Chequear que compila, sin correr tests (F5)"
                   >
                     Compilar <kbd>F5</kbd>
                   </button>
@@ -196,6 +189,22 @@ function formatCountdown(ms: number): string {
                     }
                   </div>
                 </div>
+              } @else if (compileCheck(); as cc) {
+                <div class="check-strip">
+                  <div class="verdict" [class.verdict-SUPERADO]="cc.compiles" [class.verdict-FALLADO]="!cc.compiles">
+                    <strong>{{ cc.compiles ? 'Compila ✓' : 'No compila' }}</strong>
+                    @if (!cc.compiles) {
+                      <div class="fail-block">
+                        @for (d of cc.diagnostics; track $index) {
+                          <div class="cmp-line">
+                            <span class="cmp-label">Línea {{ d.line }}</span>
+                            <span class="mono cmp-value">{{ d.message }}</span>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                </div>
               }
             </div>
           </div>
@@ -238,7 +247,7 @@ export class ChallengeSolveComponent implements OnInit, OnDestroy {
   protected readonly activePath = signal('');
   protected readonly outputLines = signal<string[]>([]);
   protected readonly check = signal<CheckState | null>(null);
-  protected readonly profileId = signal<JavaEngineProfileId>('introductorio');
+  protected readonly compileCheck = signal<JavaCompileCheckResult | null>(null);
   protected transcript: ChatMessage[] = [];
   protected readonly integrityEvents = signal<IntegrityEvent[]>([]);
   protected readonly countdownMs = signal<number | null>(null);
@@ -347,6 +356,7 @@ export class ChallengeSolveComponent implements OnInit, OnDestroy {
       );
       this.outputLines.set([]);
       this.check.set(null);
+      this.compileCheck.set(null);
       this.transcript = [];
       this.integrityEvents.set([]);
       this.windowBlurred = false;
@@ -463,16 +473,11 @@ export class ChallengeSolveComponent implements OnInit, OnDestroy {
     this.outputLines.update((lines) => [...lines.slice(-500), line]);
   }
 
-  protected onProfileChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
-    this.profileId.set(value === 'avanzado' ? 'avanzado' : 'introductorio');
-  }
-
   /**
-   * Único camino de ejecución/evaluación: POST /engine/evaluate al backend Java.
-   * Ya no se llama al executor del server Node — ni para "Compilar" (antes
-   * runExecution) ni para "Enviar" (antes submit) — así que el front no ejecuta
-   * código localmente ni le pide nada al sandbox de Node para este flujo.
+   * "Compilar" (F5) ya NO evalúa — solo chequea si el código compila, vía
+   * POST /engine/compile. Sin tests, sin análisis estático, sin quality, sin
+   * veredicto: eso es exclusivo de "Enviar" (POST /engine/evaluate, abajo).
+   * Tampoco pasa por el server Node en ningún caso.
    */
   protected async compile(): Promise<void> {
     const challenge = this.challenge();
@@ -482,47 +487,42 @@ export class ChallengeSolveComponent implements OnInit, OnDestroy {
     this.busy.set(true);
     this.outputLines.set([]);
     this.check.set(null);
-    this.writeLine('> Evaluando con el engine…');
+    this.compileCheck.set(null);
+    this.writeLine('> Compilando…');
     try {
-      const result = await this.engineService.evaluate({
-        submissionId: crypto.randomUUID(),
-        challengeId: challenge.challengeId,
+      const result = await this.engineService.compile({
         lenguaje: challenge.configuration.language,
         code: this.activeContent(),
-        profileId: this.profileId(),
       });
-      const feedback = feedbackFromJavaResult(result);
-      this.writeLine(`> ${feedback}`);
-      this.check.set({
-        verdict: verdictFromJavaResult(result),
-        feedback,
-        failingTest: null,
-        tests: correctnessSummaryOf(result),
-        quality: result.quality,
-        dimensions: result.dimensions,
-      });
+      this.compileCheck.set(result);
+      this.writeLine(
+        result.compiles ? '> Compila ✓' : `> No compila (${result.diagnostics.length} error/es).`,
+      );
     } catch (error) {
       const message = this.engineErrorMessage(error);
       this.writeLine(`> ${message}`);
-      this.check.set({ verdict: 'ERROR_TECNICO', feedback: message, failingTest: null });
+      this.compileCheck.set({ compiles: false, diagnostics: [{ line: 0, message }] });
     } finally {
       this.busy.set(false);
     }
   }
 
+  /** "Enviar" (Ctrl+S): evaluación completa, POST /engine/evaluate. Sin cambios de fondo. */
   protected async submit(): Promise<void> {
     const challenge = this.challenge();
     if (!challenge || this.busy()) {
       return;
     }
     this.busy.set(true);
+    this.compileCheck.set(null);
     try {
+      // El perfil de evaluación ya no lo elige el front: el engine lo resuelve
+      // server-side por challengeId (Challenge.evaluationProfileId).
       const result = await this.engineService.evaluate({
         submissionId: crypto.randomUUID(),
         challengeId: challenge.challengeId,
         lenguaje: challenge.configuration.language,
         code: this.activeContent(),
-        profileId: this.profileId(),
       });
       const submission = submissionFromJavaResult(challenge, result);
       void this.router.navigate(['/challenges', challenge.challengeId, 'result'], {

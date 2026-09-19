@@ -34,7 +34,8 @@ public class InMemoryChallengeRepository implements ChallengeRepository {
                     new TestCase("case1", "3 4", "7"),
                     new TestCase("case2", "10 -2", "8"),
                     new TestCase("case3", "0 0", "0")
-            )
+            ),
+            "introductorio"
     );
 
     @Override

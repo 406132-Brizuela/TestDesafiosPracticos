@@ -1,5 +1,11 @@
 import { Injectable } from '@angular/core';
-import type { JavaChallengeResponse, JavaEvaluationRequest, JavaEvaluationResult } from '../challenge-types';
+import type {
+  JavaChallengeResponse,
+  JavaCompileCheckRequest,
+  JavaCompileCheckResult,
+  JavaEvaluationRequest,
+  JavaEvaluationResult,
+} from '../challenge-types';
 
 /**
  * Cliente del backend Java real (Tema 05 / G05), NO del server Node del monaco.
@@ -21,6 +27,11 @@ export class EngineService {
 
   evaluate(request: JavaEvaluationRequest): Promise<JavaEvaluationResult> {
     return this.fetchJson<JavaEvaluationResult>('/engine/evaluate', 'POST', request);
+  }
+
+  /** Solo compilación (F5 "Compilar"): sin tests, sin dimensiones, sin quality. */
+  compile(request: JavaCompileCheckRequest): Promise<JavaCompileCheckResult> {
+    return this.fetchJson<JavaCompileCheckResult>('/engine/compile', 'POST', request);
   }
 
   private async fetchJson<T>(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<T> {

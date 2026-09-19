@@ -47,7 +47,9 @@ class EngineServiceImplTest {
     }
 
     private static ChallengeRepository challengeRepositoryWith(List<TestCase> tests) {
-        Challenge challenge = new Challenge("sample", "consigna", "java", "starter", tests);
+        // PROFILE_REPOSITORY es un stub que ignora el id y siempre devuelve DEFAULT_PROFILE,
+        // así que evaluationProfileId acá es solo para que el Challenge quede completo.
+        Challenge challenge = new Challenge("sample", "consigna", "java", "starter", tests, "default");
         return id -> challenge;
     }
 
@@ -59,6 +61,22 @@ class EngineServiceImplTest {
             results.add(new TestResult(testCase.id(), isPassed, testCase.expected(), isPassed ? testCase.expected() : "otro"));
         }
         return new ExecutionMetrics(true, tests.size(), passed, 100L, false, results);
+    }
+
+    // SandboxClient dejó de ser functional interface al sumar compileOnly (POST /engine/compile);
+    // este helper arma un stub de "run" sin tener que implementar compileOnly en cada test.
+    private static SandboxClient sandboxRunning(java.util.function.Supplier<ExecutionMetrics> metrics) {
+        return new SandboxClient() {
+            @Override
+            public ExecutionMetrics run(String lenguaje, String code, List<TestCase> tests) {
+                return metrics.get();
+            }
+
+            @Override
+            public com.tp.desafiospracticos.engine.metrics.CompileCheckResult compileOnly(String lenguaje, String code) {
+                throw new UnsupportedOperationException("compileOnly no se usa en este test");
+            }
+        };
     }
 
     private static EngineServiceImpl newEngine(SandboxClient sandboxClient, ChallengeRepository challengeRepository) {
@@ -78,7 +96,7 @@ class EngineServiceImplTest {
     @Test
     void apruebaCuandoCorrectnessSuperaElUmbral() {
         List<TestCase> tests = tenTestCases();
-        SandboxClient sandbox = (lenguaje, code, t) -> metricsWithPassed(tests, 8);
+        SandboxClient sandbox = sandboxRunning(() -> metricsWithPassed(tests, 8));
         EngineServiceImpl engine = newEngine(sandbox, challengeRepositoryWith(tests));
 
         EvaluationResult result = engine.evaluate(
@@ -94,7 +112,7 @@ class EngineServiceImplTest {
     @Test
     void aplicaCapCuandoCorrectnessNoAlcanzaElUmbral() {
         List<TestCase> tests = tenTestCases();
-        SandboxClient sandbox = (lenguaje, code, t) -> metricsWithPassed(tests, 3);
+        SandboxClient sandbox = sandboxRunning(() -> metricsWithPassed(tests, 3));
         EngineServiceImpl engine = newEngine(sandbox, challengeRepositoryWith(tests));
 
         EvaluationResult result = engine.evaluate(
@@ -110,7 +128,7 @@ class EngineServiceImplTest {
     @Test
     void marcaNoCompileCuandoNoCompila() {
         List<TestCase> tests = tenTestCases();
-        SandboxClient sandbox = (lenguaje, code, t) -> new ExecutionMetrics(false, tests.size(), 0, 0L, false, List.of());
+        SandboxClient sandbox = sandboxRunning(() -> new ExecutionMetrics(false, tests.size(), 0, 0L, false, List.of()));
         EngineServiceImpl engine = newEngine(sandbox, challengeRepositoryWith(tests));
 
         EvaluationResult result = engine.evaluate(

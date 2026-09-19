@@ -2,6 +2,7 @@ package com.tp.desafiospracticos.web;
 
 import com.tp.desafiospracticos.engine.EngineService;
 import com.tp.desafiospracticos.engine.domain.EvaluationResult;
+import com.tp.desafiospracticos.engine.metrics.CompileCheckResult;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,6 +16,12 @@ public class EvaluationController {
 
     public EvaluationController(EngineService engineService) {
         this.engineService = engineService;
+    }
+
+    /** Solo compilación: sin tests, sin dimensiones, sin quality. Ver POST /engine/evaluate para la evaluación completa. */
+    @PostMapping("/compile")
+    public CompileCheckResult compile(@RequestBody CompileCheckRequest request) {
+        return engineService.compileOnly(request.lenguaje(), request.code());
     }
 
     @PostMapping("/evaluate")

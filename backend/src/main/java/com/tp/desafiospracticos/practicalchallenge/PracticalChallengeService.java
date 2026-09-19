@@ -14,6 +14,10 @@ import java.util.UUID;
 @Service
 public class PracticalChallengeService {
 
+    // Mismo default que EngineServiceImpl.DEFAULT_PROFILE_ID: si el desafío no trae rúbrica,
+    // queda en el mismo perfil que el engine usaría de todas formas ante un dato faltante.
+    private static final String DEFAULT_EVALUATION_PROFILE_ID = "introductorio";
+
     private final PracticalChallengeJpaRepository repository;
     private final PracticalChallengeCatalog catalog;
     private final MotorChallengeResolver motorResolver;
@@ -37,12 +41,17 @@ public class PracticalChallengeService {
         // exista y deja a Motor como fuente de verdad de título/dificultad.
         motorResolver.resolveOrThrow(desafioId);
 
+        String evaluationProfileId = request.evaluationProfileId() != null
+                ? request.evaluationProfileId()
+                : DEFAULT_EVALUATION_PROFILE_ID;
+
         PracticalChallengeEntity challenge = new PracticalChallengeEntity(
                 desafioId,
                 catalog.defaultType(),
                 request.statement().trim(),
                 creatorId,
-                creationDatetime
+                creationDatetime,
+                evaluationProfileId
         );
 
         challenge.addFile(new ChallengeFileEntity(
